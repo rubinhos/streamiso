@@ -30,11 +30,14 @@ modern browser can use your discs without decoding anything itself.
 ## Screenshots
 
 <p align="center">
+  <img src="assets/screenshots/catalog.jpg" alt="Catalog" width="640"><br>
+  <sub>Streamiso user catalog</sub>
+</p>
+
+<p align="center">
   <img src="assets/screenshots/dvd-menu.gif" alt="Navigating a DVD's own menus in the browser" width="640"><br>
   <sub>Navigating a DVD's real menus in the browser (VLC + libdvdnav, streamed over WebRTC)</sub>
 </p>
-
-> The library screenshots use a demo library with made-up titles and generated covers.
 
 ## About this project (read this first)
 
