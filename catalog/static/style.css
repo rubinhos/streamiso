@@ -318,8 +318,19 @@ main { padding: 8px 40px 60px; }
 .actions .danger { color: var(--danger); }
 .error { margin: 14px 0 0; color: var(--danger); }
 
+#rescan { display: inline-flex; align-items: center; gap: 8px; }
+#rescan svg { flex: none; }
+
 @media (max-width: 700px) {
   header, main { padding-left: 16px; padding-right: 16px; }
+  /* Phone: one row with just the text filter and a refresh icon, across the full width. */
+  /* The logo keeps its own row above, so the filter and the button share the next one. */
+  header { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+  header .brand { flex: 0 0 100%; }
+  header .logo { height: 40px; }
+  header #count, header .spacer, header select, #rescan .lbl { display: none; }
+  header #filter { flex: 1; min-width: 0; width: auto; }
+  #rescan { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px 14px; }
   .group + .group { margin-top: 32px; }
   .ed-grid { grid-template-columns: 1fr; }

@@ -37,8 +37,8 @@ What that means in practice:
 
 - It works for the author's setup, but it has had **no formal code review, no security audit and no automated test suite**.
   Individual pieces were exercised with a real VLC, real disc images and mock servers during development; that is not the same as a test suite.
-- Some integrations could only be checked against simulated services while building, and are **not yet verified against the real thing**
-  in every case (TMDB and MusicBrainz lookups, and the way the bundled Neko version hands over keyboard control to the page).
+- The author tested the play button, DVD menus, audio CDs and resume on a Windows PC with Docker Desktop and on a phone browser (see [Running on Windows](#running-on-windows)).
+  Other setups (Linux servers, TVs, other browsers) and the TMDB lookups have had less testing, and some pieces were only checked against simulated services while building.
   If something misbehaves, please open an issue with the details.
 - Treat it as a home-lab tool. Read the code before you trust it, and do not expose it to the internet.
 
@@ -352,16 +352,49 @@ The first time, the browser may block sound until you click once: Streamiso then
 
 Not supported yet. VLC 3 plays unprotected Blu-ray images with limited menus and no BD-J, and protected discs need AACS keys, so this needs more design first.
 
-## Running on WSL2
+## Running on Windows
 
-Handy for a test setup. WebRTC media uses UDP, which WSL2's NAT does not forward reliably.
+Streamiso was tested by its author on **Windows 11 with Docker Desktop (WSL 2 backend)**, using a PC browser and a phone
+browser on the same Wi-Fi (WSL 3.0.3, Docker 29.9.2). The catalog is plain HTTP, but the video is WebRTC over UDP, so
+`SERVER_IP` must be an address the *viewing device* can reach.
 
-- **Same PC**: use the WSL IP, not `localhost`. Run `hostname -I | awk '{print $1}'`, put it in `SERVER_IP`,
-  run `docker compose up -d`, and open `http://<that-ip>:8080` in the Windows browser. The WSL IP changes after a restart.
-- **Other devices (TV)**: enable mirrored networking in `%UserProfile%\.wslconfig` (`[wsl2]` then `networkingMode=mirrored`,
-  Windows 11 22H2+), run `wsl --shutdown`, set `SERVER_IP` to the Windows PC's LAN IP, and allow TCP 8080/8081 and
-  UDP 52000-52100 in the Windows firewall (and `Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow`).
-  A regular Linux server does not need any of this.
+**Same PC only**
+
+1. In `.env` set `SERVER_IP=127.0.0.1` (and your media folders with forward slashes, e.g. `DVD_DIR=D:/Media/DVDs`).
+2. `docker compose up -d --build`, then open `http://localhost:8080`.
+
+**Other devices (phone, TV) on your network**
+
+On current Windows/WSL/Docker Desktop versions, published ports may be forwarded to `localhost` only, so the PC's LAN IP
+refuses connections (a sign of it: `netstat -ano | findstr LISTENING` shows nothing on port 8080, yet `localhost:8080` works).
+What worked:
+
+1. In `%UserProfile%\.wslconfig` (create it if missing) set:
+
+   ```ini
+   [wsl2]
+   networkingMode=mirrored
+   ```
+
+2. In PowerShell **as administrator**, allow inbound traffic to WSL in the Hyper-V firewall (`{40E0AC32-...}` is the fixed
+   ID of WSL, see [Microsoft's documentation](https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall)),
+   and open the Streamiso ports in the Windows firewall (the network must be marked **Private**):
+
+   ```powershell
+   Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
+   New-NetFirewallRule -DisplayName "Streamiso TCP" -Direction Inbound -Protocol TCP -LocalPort 8080,8081 -Action Allow -Profile Private
+   New-NetFirewallRule -DisplayName "Streamiso UDP" -Direction Inbound -Protocol UDP -LocalPort 52000-52100 -Action Allow -Profile Private
+   ```
+
+3. Run `wsl --shutdown`, quit Docker Desktop from the tray icon and start it again.
+4. In `.env` set `SERVER_IP` to the PC's IPv4 address on your network (`ipconfig`, the adapter with a default gateway),
+   then `docker compose up -d --force-recreate`.
+5. Open `http://<that-ip>:8080` on the phone. A guest Wi-Fi with client isolation will not work.
+
+Give the PC a fixed IP in your router, otherwise `SERVER_IP` goes stale when the address changes.
+
+**Docker inside WSL (without Docker Desktop)**: the same mirrored-networking steps apply; media folders then live under
+`/mnt/d/...`. In the default NAT mode this setup only works from the same PC, using the WSL IP (`hostname -I`) as `SERVER_IP`.
 
 ## Troubleshooting
 

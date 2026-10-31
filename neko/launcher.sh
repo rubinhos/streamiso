@@ -29,6 +29,23 @@ stop_vlc() {
 
 trap 'stop_vlc; exit 0' TERM INT
 
+# VLC opens its own context menu on a right click. Besides the web page ignoring that button, turn
+# the right and middle buttons off at the X server, so nothing can reach VLC even if a click gets
+# through. Whichever tool the image has is used; failure is harmless (the log says what happened).
+disable_secondary_buttons() {
+  if command -v xmodmap >/dev/null 2>&1; then
+    xmodmap -e "pointer = 1 0 0 4 5 6 7 8 9" && { echo "[launcher] right/middle buttons disabled (xmodmap)"; return; }
+  fi
+  if command -v xinput >/dev/null 2>&1; then
+    for id in $(xinput list --id-only 2>/dev/null); do
+      xinput set-button-map "$id" 1 0 0 4 5 6 7 2>/dev/null && echo "[launcher] buttons remapped on device $id (xinput)"
+    done
+    return
+  fi
+  echo "[launcher] no xmodmap/xinput in this image: right-click only blocked in the web page"
+}
+disable_secondary_buttons
+
 echo "[launcher] watching $STATE_FILE"
 
 while true; do

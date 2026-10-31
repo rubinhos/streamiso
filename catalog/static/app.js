@@ -212,12 +212,9 @@
     }
     card.addEventListener("click", function () { play(d, !!d.resume); });
 
-    var kindTag = null;
-    if (d.kind === "cd") {
-      kindTag = document.createElement("span");
-      kindTag.className = "kindtag";
-      kindTag.textContent = "\u266a CD";
-    }
+    var kindTag = document.createElement("span");
+    kindTag.className = "kindtag";
+    kindTag.textContent = d.kind === "cd" ? "\uD83C\uDFB5 CD" : "\uD83C\uDF9E\uFE0F DVD";
 
     var ribbon = document.createElement("span");
     ribbon.className = "ribbon";

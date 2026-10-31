@@ -64,7 +64,25 @@
   // works in the DVD menu without clicking the picture first. (Mouse input already worked: Neko
   // focuses its overlay when the pointer enters it.) Retries for a few seconds, because the overlay
   // only exists once Neko has connected.
+  // On phones a focused textarea pops up the on-screen keyboard. inputmode="none" keeps the focus
+  // (so hardware keyboards and remotes still work) but tells the phone not to show a keyboard.
+  function noKeyboard() {
+    var list = document.querySelectorAll("textarea, input");
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].getAttribute("inputmode") !== "none") list[i].setAttribute("inputmode", "none");
+      // Read-only keeps key events flowing to Neko, but browsers (Edge's Copilot rewrite icon, for
+      // one) only decorate fields that can be edited. The overlay never holds any text anyway.
+      if (list[i].tagName === "TEXTAREA" && !list[i].readOnly) list[i].readOnly = true;
+    }
+  }
+  noKeyboard();
+  try {
+    new MutationObserver(noKeyboard).observe(document.documentElement, {
+      childList: true, subtree: true, attributes: true, attributeFilter: ["inputmode"]
+    });
+  } catch (e) { /* ignore */ }
   function focusInput() {
+    noKeyboard();
     var el = document.querySelector("textarea.overlay, .overlay textarea, textarea");
     if (!el) return false;
     try { window.focus(); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
@@ -93,6 +111,18 @@
       return !!acc.remote.hosting;
     } catch (e) { return false; }
   }
+  // Right and middle clicks would reach the desktop and open VLC's own context menu on top of the
+  // picture. Swallow them in the capture phase, before Neko's input layer sees them. The left button
+  // (and touch taps, which Neko turns into left clicks) still works for the disc menus.
+  function blockSecondary(e) {
+    if (e.type === "contextmenu" || e.button === 2 || e.button === 1) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }
+  ["contextmenu", "mousedown", "mouseup", "auxclick", "pointerdown", "pointerup"].forEach(function (name) {
+    window.addEventListener(name, blockSecondary, true);
+  });
   var focusTries = 0;
   var focusTimer = setInterval(function () {
     if (!reported) { if (++focusTries > 40) clearInterval(focusTimer); return; }
@@ -123,5 +153,20 @@
       activity();
     }
   }, true);
+
+  // Only the keys a disc needs go on to VLC: arrows, Enter and Space. Anything else (Esc and F leave
+  // fullscreen and bring up VLC's own menu bar, plus all of VLC's single-letter shortcuts) is kept
+  // away from Neko's input layer. This listener is registered after the one above, so the controls
+  // still show up for every key. Nothing is preventDefault-ed, so the browser keeps its own keys
+  // (Esc leaves the page's full screen, F5, F11, ...).
+  var PASS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Enter: 1, " ": 1 };
+  function filterKey(e) {
+    if (PASS[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) return;
+    if (MEDIA[e.key] || MEDIA[e.keyCode] || BACK[e.key]) return;
+    e.stopImmediatePropagation();
+  }
+  ["keydown", "keyup", "keypress"].forEach(function (name) {
+    window.addEventListener(name, filterKey, true);
+  });
 })();
 </script>

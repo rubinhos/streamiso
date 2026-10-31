@@ -141,11 +141,21 @@
     body.unlock #av-hint { display: block; }
     body.audio #dvdmenu, body.audio #audio, body.audio #subs { display: none; }
 
+    @media (max-height: 520px) and (min-width: 701px) {
+      .av-main { top: 64px; bottom: 100px; padding: 0 24px; }
+      .av-cover { margin-right: 24px; }
+      .av-album { font-size: 20px; }
+      .av-artist { margin: 2px 0 8px; font-size: 14px; }
+      #av-tracks li { padding: 6px 10px; }
+    }
     @media (max-width: 700px) {
-      .av-main { flex-direction: column; top: 76px; padding: 0 16px; }
-      .av-cover { height: auto; width: min(52vw, 220px); margin: 0 0 14px 0; }
-      .av-side { width: 100%; max-width: none; }
-      .av-album { font-size: 22px; }
+      /* Keep the cover and track list between the top bar (about 60px) and the controls (about 100px). */
+      .av-main { flex-direction: column; justify-content: flex-start; align-items: stretch; top: 68px; bottom: 104px; padding: 0 16px; }
+      .av-cover { height: auto; width: min(34vw, 150px); margin: 0 auto 10px; flex: none; }
+      .av-side { width: 100%; max-width: none; height: auto; flex: 1; min-height: 0; }
+      .av-album { font-size: 18px; }
+      .av-artist { margin: 4px 0 8px; font-size: 14px; }
+      #av-tracks li { padding: 8px 10px; }
       .bar { padding-left: 12px; padding-right: 12px; }
       .hide-sm { display: none !important; }
       button { width: 42px; height: 42px; }
