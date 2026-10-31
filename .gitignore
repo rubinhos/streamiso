@@ -11,3 +11,6 @@ __pycache__/
 
 # Placeholder mount when only one of DVD_DIR / CD_DIR is set
 empty/
+
+# Raw screen recording (35 MB); the README uses the optimized GIF next to it
+assets/screenshots/demo.mp4

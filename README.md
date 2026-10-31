@@ -27,6 +27,32 @@ modern browser can use your discs without decoding anything itself.
 
 > **Status: early prototype (v0.6).** Built for a single viewer on a home network. See [Limitations and security](#limitations-and-security).
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/catalog-desktop.png" alt="The library on a desktop browser: poster grid with DVD tags, watched badges and resume progress" width="860">
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="assets/screenshots/catalog-phone.png" alt="The library on a phone" width="250"><br><sub>Library on a phone</sub></td>
+    <td align="center"><img src="assets/screenshots/cd-player-phone.png" alt="The audio CD player on a phone" width="250"><br><sub>Audio CD player</sub></td>
+    <td align="center"><img src="assets/screenshots/cd-player-phone.gif" alt="Switching tracks in the audio CD player" width="250"><br><sub>Switching tracks</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="assets/screenshots/catalog-filter.gif" alt="Filtering the library by title and by type" width="640"><br>
+  <sub>Filtering the library by title and by type</sub>
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/dvd-menu.gif" alt="Navigating a DVD's own menus in the browser" width="640"><br>
+  <sub>Navigating a DVD's real menus in the browser (VLC + libdvdnav, streamed over WebRTC)</sub>
+</p>
+
+> The library screenshots use a demo library with made-up titles and generated covers.
+
 ## About this project (read this first)
 
 **Streamiso is a "vibe coded" project.** It was designed, written and debugged in a long conversation between its
@@ -469,7 +495,7 @@ streamiso/
 │   ├── neko-inject.html   small script that reports activity to the player page
 │   ├── patch-neko.sh      applies that script at container start
 │   └── vlc.conf           supervisor config that replaces the stock VLC startup
-└── assets/                logo files
+└── assets/                logo files and screenshots
 ```
 
 ## Contributing
