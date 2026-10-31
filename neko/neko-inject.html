@@ -60,6 +60,37 @@
     if (ok !== lastOk) { lastOk = ok; send({ type: "audio-state", ok: ok }); }
   }, 1000);
 
+  // Some TV browsers (older Chromium builds) leave Neko's video box tiny: the picture plays, but as a
+  // dot in the middle of the screen. If the video is clearly smaller than the window, stretch the video
+  // and every box around it to the full window (the picture keeps its proportions). Browsers that
+  // already lay it out correctly never take this path.
+  // The stream page holds nothing but the picture, so it never needs scroll bars. When the picture is
+  // stretched (below), a bar that appears and disappears resizes the window and makes the screen flicker.
+  try {
+    var noBars = document.createElement("style");
+    noBars.textContent = "html, body { overflow: hidden !important; } ::-webkit-scrollbar { display: none !important; }";
+    (document.head || document.documentElement).appendChild(noBars);
+  } catch (e) { /* ignore */ }
+  function fitVideo() {
+    var v = document.querySelector("video");
+    if (!v || !v.videoWidth) return;
+    var W = window.innerWidth, H = window.innerHeight;
+    var r = v.getBoundingClientRect();
+    if (r.width >= W * 0.9 || r.height >= H * 0.9) return;
+    for (var el = v; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+      el.style.setProperty("width", "100%", "important");
+      el.style.setProperty("height", "100%", "important");
+      el.style.setProperty("max-width", "none", "important");
+      el.style.setProperty("max-height", "none", "important");
+    }
+    v.style.setProperty("object-fit", "contain", "important");
+    document.documentElement.style.setProperty("height", "100%");
+    document.body.style.setProperty("height", "100%");
+    document.body.style.setProperty("margin", "0");
+  }
+  setInterval(fitVideo, 1000);
+  window.addEventListener("resize", fitVideo);
+
   // Give Neko's input layer the keyboard focus as soon as the stream shows, so the remote or keyboard
   // works in the DVD menu without clicking the picture first. (Mouse input already worked: Neko
   // focuses its overlay when the pointer enters it.) Retries for a few seconds, because the overlay
