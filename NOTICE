@@ -1,0 +1,17 @@
+Streamiso
+Copyright 2026 Rubens (https://github.com/rubinhos)
+
+This product was written with the help of an AI assistant (Claude, by Anthropic),
+under the direction of the copyright holder above.
+
+This product includes or depends on the following third-party software and services,
+each under its own terms:
+
+- Neko (https://github.com/m1k1o/neko), Apache License 2.0, used as a container image
+- VLC media player and libdvdnav (https://www.videolan.org), used inside the Neko image
+- Flask and Gunicorn, used by the catalog service
+- Data from TMDB (https://www.themoviedb.org), MusicBrainz (https://musicbrainz.org)
+  and the Cover Art Archive (https://coverartarchive.org) when enabled
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+"Streamiso" is not affiliated with Stremio.

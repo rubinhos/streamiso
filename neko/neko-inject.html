@@ -1,0 +1,127 @@
+<!-- streamiso-patch -->
+<script id="streamiso-patch-js">
+(function () {
+  // Streamiso bridge. The player page embeds Neko in an iframe, and browsers do not pass mouse or
+  // key events from a cross-origin iframe to its parent. This script reports them, so the parent can
+  // show its control bar and react to remote-control media keys.
+  if (window.parent === window) return;
+
+  // Keys the parent cares about (TV remotes, keyboards with media keys, Samsung Tizen key codes).
+  var MEDIA = {
+    MediaPlayPause: "toggle", MediaPlay: "toggle", MediaPause: "toggle",
+    MediaTrackNext: "next", MediaTrackPrevious: "prev",
+    MediaFastForward: "forward", MediaRewind: "rewind", MediaStop: "stop",
+    10252: "toggle", 415: "toggle", 19: "toggle",
+    417: "forward", 412: "rewind", 413: "stop", 10009: "back"
+  };
+  var BACK = { BrowserBack: 1, GoBack: 1 };
+  // Menu navigation. Neko forwards these keys to VLC itself when this viewer has control of the
+  // desktop; when it does not, they are reported so the catalog can send them to VLC directly.
+  var NAV = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "activate" };
+
+  function send(msg) {
+    msg.streamiso = true;
+    try { window.parent.postMessage(msg, "*"); } catch (e) { /* ignore */ }
+  }
+
+  var last = 0;
+  function activity() {
+    var now = Date.now();
+    if (now - last < 150) return;
+    last = now;
+    send({ type: "activity" });
+  }
+
+  ["mousemove", "mousedown", "touchstart", "wheel"].forEach(function (name) {
+    window.addEventListener(name, activity, { capture: true, passive: true });
+  });
+
+  // Tell the parent when the first video frame data arrives, so it can hide its loading cover
+  // (and with it Neko's own connecting screen).
+  var reported = false;
+  function videoReady() {
+    if (reported) return;
+    reported = true;
+    send({ type: "video-ready" });
+  }
+  ["loadeddata", "playing", "canplay"].forEach(function (name) {
+    document.addEventListener(name, function (e) {
+      if (e.target && e.target.tagName === "VIDEO") videoReady();
+    }, true);
+  });
+
+  // Report whether the stream is audible, so the parent can bring Neko's own play/unmute button
+  // forward when the browser blocked autoplay with sound (audio CDs have nothing else to look at).
+  var lastOk = null;
+  setInterval(function () {
+    var v = document.querySelector("video");
+    if (!v) return;
+    var ok = !v.paused && !v.muted;
+    if (ok !== lastOk) { lastOk = ok; send({ type: "audio-state", ok: ok }); }
+  }, 1000);
+
+  // Give Neko's input layer the keyboard focus as soon as the stream shows, so the remote or keyboard
+  // works in the DVD menu without clicking the picture first. (Mouse input already worked: Neko
+  // focuses its overlay when the pointer enters it.) Retries for a few seconds, because the overlay
+  // only exists once Neko has connected.
+  function focusInput() {
+    var el = document.querySelector("textarea.overlay, .overlay textarea, textarea");
+    if (!el) return false;
+    try { window.focus(); el.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    return document.activeElement === el;
+  }
+  // Neko only passes mouse and keys to the desktop to whoever has "control", which an implicit
+  // host gets by clicking first. Ask for it right away, so the disc menu answers without a click.
+  var clicked = false;  // a click in the picture gives control with implicit hosting
+  window.addEventListener("mousedown", function () { clicked = true; }, true);
+  function hasControl() {
+    if (clicked) return true;
+    try {
+      var root = document.getElementById("neko") || document.querySelector("[id^=app],#app");
+      var vm = root && root.__vue__;
+      var acc = vm && (vm.$accessor || (vm.$root && vm.$root.$accessor));
+      return !!(acc && acc.remote && acc.remote.hosting);
+    } catch (e) { return false; }
+  }
+  function takeControl() {
+    try {
+      var root = document.getElementById("neko") || document.querySelector("[id^=app],#app");
+      var vm = root && root.__vue__;
+      var acc = vm && (vm.$accessor || (vm.$root && vm.$root.$accessor));
+      if (!acc || !acc.remote) return false;
+      if (!acc.remote.hosting) acc.remote.request();
+      return !!acc.remote.hosting;
+    } catch (e) { return false; }
+  }
+  var focusTries = 0;
+  var focusTimer = setInterval(function () {
+    if (!reported) { if (++focusTries > 40) clearInterval(focusTimer); return; }
+    var controlled = takeControl();
+    var focused = focusInput();
+    if (++focusTries > 40 || (controlled && focused)) clearInterval(focusTimer);
+  }, 500);
+  window.addEventListener("focus", function () { if (reported) focusInput(); });
+
+  // The catalog page's big start button was clicked (a real user gesture): take control, focus the
+  // input layer and make sure the stream is audible.
+  window.addEventListener("message", function (e) {
+    if (e.source !== window.parent || !e.data || e.data.streamiso !== true || e.data.type !== "start") return;
+    takeControl();
+    focusInput();
+    var v = document.querySelector("video");
+    if (v) { try { v.muted = false; v.volume = 1; var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (err) { /* ignore */ } }
+  });
+
+  window.addEventListener("keydown", function (e) {
+    var action = MEDIA[e.key] || MEDIA[e.keyCode] || (BACK[e.key] ? "back" : null);
+    if (action) {
+      send({ type: "key", action: action });
+    } else if (NAV[e.key] && !hasControl()) {
+      send({ type: "key", action: "nav-" + NAV[e.key] });
+    } else {
+      // any other key: show the controls briefly (the key still goes to VLC)
+      activity();
+    }
+  }, true);
+})();
+</script>

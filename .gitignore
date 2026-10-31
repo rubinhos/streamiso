@@ -1,0 +1,13 @@
+# Local configuration and secrets
+.env
+
+# Runtime data (library edits, covers, TMDB cache, playback state)
+data/
+state/
+
+# Python
+__pycache__/
+*.pyc
+
+# Placeholder mount when only one of DVD_DIR / CD_DIR is set
+empty/

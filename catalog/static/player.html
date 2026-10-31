@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Streamiso</title>
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#000000">
+  <style>
+    :root { --accent: #f0b429; --fg: #fff; --muted: rgba(255, 255, 255, .72); }
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden;
+      font: 500 15px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); }
+    #player { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0; background: #000; z-index: 0; }
+    #player.front { z-index: 2; }   /* audio mode: brought forward only when Neko needs a click to enable sound */
+
+    /* ---- loading cover (until VLC answers) ---- */
+    #loading { z-index: 3; position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: #000; pointer-events: none;
+      transition: opacity .4s; }
+    #loading.done { opacity: 0; }
+    .spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .2);
+      border-top-color: var(--accent); animation: spin .9s linear infinite; margin-bottom: 18px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { margin: 4px 0; color: var(--muted); }
+
+    /* ---- start button (DVDs open paused; the click also gives the video the keyboard focus) ---- */
+    #start { z-index: 3; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%;
+      border: 0; border-radius: 0; margin: 0; padding: 0; display: none; flex-direction: column;
+      align-items: center; justify-content: center; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer;
+      opacity: 1; }
+    #start.show { display: flex; }
+    #start .disc { width: 128px; height: 128px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; background: var(--accent); box-shadow: 0 8px 40px rgba(0, 0, 0, .6);
+      transition: transform .12s ease; }
+    #start .disc svg { width: 64px; height: 64px; fill: #111; margin-left: 6px; }
+    #start:hover .disc, #start:focus-visible .disc { transform: scale(1.08); }
+    #start:focus-visible { outline: none; }
+    #start .name { margin-top: 22px; font-size: 22px; font-weight: 600; max-width: 80%; text-align: center; }
+    #start .sub { margin-top: 6px; font-size: 15px; color: var(--muted); }
+
+    /* ---- control overlay ---- */
+    #ui { z-index: 4; position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;
+      opacity: 1; transition: opacity .25s; }
+    #ui.hidden { opacity: 0; }
+    .bar { position: absolute; left: 0; right: 0; box-sizing: border-box; }
+    .top { top: 0; padding: 18px 24px 56px; display: flex; align-items: center;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, .78), rgba(0, 0, 0, 0)); }
+    .bottom { bottom: 0; padding: 64px 24px 18px;
+      background: linear-gradient(to top, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0)); }
+    #ui:not(.hidden) .top > *, #ui:not(.hidden) .bottom > * { pointer-events: auto; }
+
+    #title { font-size: 20px; font-weight: 600; margin-left: 14px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+
+    button { font: inherit; color: var(--fg); background: none; border: 0; padding: 0; margin: 0;
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+      width: 46px; height: 46px; border-radius: 50%; opacity: .9; flex: none;
+      transition: background .15s, opacity .15s, transform .1s; }
+    button:hover { opacity: 1; background: rgba(255, 255, 255, .14); }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; opacity: 1; }
+    button:active { transform: scale(.94); }
+    button[disabled] { opacity: .3; cursor: default; background: none; transform: none; }
+    button svg { width: 28px; height: 28px; fill: currentColor; pointer-events: none; }
+    button.big svg { width: 34px; height: 34px; }
+    button.label { width: auto; border-radius: 23px; padding: 0 16px; font-weight: 600; }
+    button.label svg { width: 22px; height: 22px; margin-right: 8px; }
+
+    /* seek bar */
+    .seekrow { display: flex; align-items: center; margin-bottom: 6px; }
+    .time { min-width: 52px; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .time.right { text-align: right; }
+    #seek { position: relative; flex: 1; height: 28px; margin: 0 12px; cursor: pointer; touch-action: none;
+      outline: none; }
+    #seek .track { position: absolute; left: 0; right: 0; top: 50%; height: 5px; margin-top: -2.5px;
+      border-radius: 3px; background: rgba(255, 255, 255, .28); transition: height .12s, margin-top .12s; }
+    #seek:hover .track, #seek.drag .track, #seek:focus-visible .track { height: 8px; margin-top: -4px; }
+    #seek .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); }
+    #seek .thumb { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; left: 0;
+      border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform .12s; }
+    #seek:hover .thumb, #seek.drag .thumb, #seek:focus-visible .thumb { transform: scale(1); }
+    #seek .tip { position: absolute; bottom: 24px; padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, .85);
+      font-size: 13px; transform: translateX(-50%); display: none; font-variant-numeric: tabular-nums; }
+    #seek:hover .tip, #seek.drag .tip { display: block; }
+    #seek.off { cursor: default; opacity: .35; pointer-events: none !important; }
+    .menutag { flex: 1; text-align: center; color: var(--muted); font-size: 14px; }
+
+    /* control row */
+    .row { display: flex; align-items: center; position: relative; }
+    .spacer { flex: 1; }
+    .vol { display: flex; align-items: center; margin-left: 4px; }
+    #volume { width: 0; opacity: 0; transition: width .2s, opacity .2s; -webkit-appearance: none; appearance: none;
+      height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .3); outline: none; margin: 0; cursor: pointer; }
+    .vol:hover #volume, .vol:focus-within #volume, #volume.show { width: 100px; opacity: 1; margin: 0 10px 0 4px; }
+    #volume::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--fg); border: 0; }
+    #volume::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--fg); border: 0; }
+
+    /* popup menus */
+    .pop { position: absolute; bottom: 58px; min-width: 200px; max-width: 360px; max-height: 50vh; overflow: auto;
+      background: rgba(20, 20, 24, .96); border: 1px solid rgba(255, 255, 255, .14); border-radius: 10px;
+      padding: 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, .6); display: none; pointer-events: auto; }
+    .pop.open { display: block; }
+    .pop h4 { margin: 8px 10px 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .pop .item { display: block; width: 100%; height: auto; border-radius: 6px; padding: 10px 12px 10px 32px;
+      text-align: left; justify-content: flex-start; position: relative; opacity: 1; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; }
+    .pop .item.sel::before { content: "\2713"; position: absolute; left: 11px; color: var(--accent); font-weight: 700; }
+    .pop .empty { padding: 10px 12px; color: var(--muted); }
+
+    #toast { z-index: 5; position: fixed; left: 50%; top: 18%; transform: translateX(-50%); padding: 10px 18px; border-radius: 8px;
+      background: rgba(0, 0, 0, .8); opacity: 0; transition: opacity .2s; pointer-events: none; }
+    #toast.show { opacity: 1; }
+
+    /* ---- audio CD view ---- */
+    #audioview { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; background: #0d0f1c; overflow: hidden; }
+    #audioview[hidden] { display: none; }
+    .av-bg { position: absolute; top: -8%; left: -8%; width: 116%; height: 116%; background-size: cover;
+      background-position: center; filter: blur(46px) saturate(.5) brightness(.42); }
+    .av-main { position: absolute; top: 84px; bottom: 150px; left: 0; right: 0; display: flex;
+      align-items: center; justify-content: center; padding: 0 40px; box-sizing: border-box; }
+    .av-cover { flex: none; height: min(100%, 460px); aspect-ratio: 1 / 1; margin-right: 48px; }
+    .av-cover img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 10px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .6); background: rgba(255, 255, 255, .06); }
+    .av-side { flex: 1; min-width: 0; max-width: 560px; height: 100%; display: flex; flex-direction: column; }
+    .av-album { font-size: 30px; font-weight: 700; line-height: 1.15; }
+    .av-artist { margin: 6px 0 16px; color: var(--muted); font-size: 18px; }
+    #av-tracks { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-height: 0; }
+    #av-tracks li { display: flex; align-items: center; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+    #av-tracks li:hover, #av-tracks li:focus-visible { background: rgba(255, 255, 255, .1); outline: none; }
+    #av-tracks li.cur { background: rgba(240, 180, 41, .16); color: var(--accent); }
+    #av-tracks .n { width: 34px; flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+    #av-tracks li.cur .n { color: var(--accent); }
+    #av-tracks .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #av-tracks .d { margin-left: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    #av-hint { position: absolute; top: 76px; left: 0; right: 0; text-align: center; z-index: 6; display: none; }
+    #av-hint span { display: inline-block; padding: 10px 18px; border-radius: 8px; background: rgba(0, 0, 0, .85);
+      border: 1px solid var(--accent); }
+    body.unlock #av-hint { display: block; }
+    body.audio #dvdmenu, body.audio #audio, body.audio #subs { display: none; }
+
+    @media (max-width: 700px) {
+      .av-main { flex-direction: column; top: 76px; padding: 0 16px; }
+      .av-cover { height: auto; width: min(52vw, 220px); margin: 0 0 14px 0; }
+      .av-side { width: 100%; max-width: none; }
+      .av-album { font-size: 22px; }
+      .bar { padding-left: 12px; padding-right: 12px; }
+      .hide-sm { display: none !important; }
+      button { width: 42px; height: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <iframe id="player" title="DVD player" allow="autoplay; fullscreen" allowfullscreen></iframe>
+
+  <div id="audioview" hidden>
+    <div class="av-bg" id="av-bg"></div>
+    <div id="av-hint"><span>Click the play button in the middle of the screen to enable sound</span></div>
+    <div class="av-main">
+      <div class="av-cover"><img id="av-cover" alt=""></div>
+      <div class="av-side">
+        <div class="av-album" id="av-album"></div>
+        <div class="av-artist" id="av-artist"></div>
+        <ol id="av-tracks"></ol>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p id="loading-title"></p>
+    <p>Loading…</p>
+  </div>
+
+  <button id="start" type="button" aria-label="Play">
+    <span class="disc"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>
+    <span class="name" id="start-name"></span>
+    <span class="sub" id="start-sub"></span>
+  </button>
+
+  <div id="ui">
+    <div class="bar top">
+      <button id="back" type="button" title="Back to library" aria-label="Back to library">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg>
+      </button>
+      <div id="title"></div>
+    </div>
+
+    <div class="bar bottom">
+      <div class="seekrow">
+        <div class="time" id="t-now">0:00</div>
+        <div id="seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+          <div class="track"><div class="fill" id="seek-fill"></div></div>
+          <div class="thumb" id="seek-thumb"></div>
+          <div class="tip" id="seek-tip">0:00</div>
+        </div>
+        <div class="time right" id="t-left">0:00</div>
+      </div>
+
+      <div class="row" id="controls">
+        <button id="toggle" class="big" type="button" title="Play / Pause (Space)" aria-label="Play or pause"></button>
+        <button id="prev" type="button" title="Previous chapter" aria-label="Previous chapter">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg>
+        </button>
+        <button id="rew" type="button" title="Back 10 seconds" aria-label="Back 10 seconds">
+          <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/><text x="12" y="16.2" text-anchor="middle" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">10</text></svg>
+        </button>
+        <button id="fwd" type="button" title="Forward 10 seconds" aria-label="Forward 10 seconds">
+          <svg viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/><text x="12" y="16.2" text-anchor="middle" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">10</text></svg>
+        </button>
+        <button id="next" type="button" title="Next chapter" aria-label="Next chapter">
+          <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+        </button>
+        <div class="vol">
+          <button id="mute" type="button" title="Mute (M)" aria-label="Mute"></button>
+          <input id="volume" type="range" min="0" max="100" step="1" value="100" aria-label="Volume">
+        </div>
+
+        <div class="spacer"></div>
+
+        <button id="dvdmenu" class="label hide-sm" type="button" title="Go to the DVD menu">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>DVD menu
+        </button>
+        <button id="audio" type="button" title="Audio" aria-label="Audio track">
+          <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+        </button>
+        <button id="subs" type="button" title="Subtitles" aria-label="Subtitles">
+          <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM4 12h4v2H4zm10 6H4v-2h10zm6 0h-4v-2h4zm0-4h-10v-2h10z"/></svg>
+        </button>
+        <button id="full" type="button" title="Fullscreen (F)" aria-label="Fullscreen"></button>
+
+        <div class="pop" id="pop-audio" style="right: 92px"></div>
+        <div class="pop" id="pop-subs" style="right: 46px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" role="status"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var ICON = {
+        play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+        pause: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+        vol: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg>',
+        volHigh: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>',
+        mute: '<svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 8v2.2l2.4 2.4c.1-.2.1-.4.1-.6zM19 12c0 .9-.2 1.8-.5 2.6l1.5 1.5A9 9 0 0 0 21 12a9 9 0 0 0-7-8.8v2.1c2.9.9 5 3.5 5 6.7zM4.3 3L3 4.3 7.7 9H3v6h4l5 5v-6.7l4.3 4.3c-.7.5-1.4.9-2.3 1.2v2.1a9 9 0 0 0 3.7-1.8l2 2L21 19.7l-9-9zM12 4L9.9 6.1 12 8.2z"/></svg>',
+        fs: '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7zm-2-4h2V7h3V5H5zm12 7h-3v2h5v-5h-2zM14 5v2h3v3h2V5z"/></svg>',
+        fsExit: '<svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5zm3-8H5v2h5V5H8zm6 11h2v-3h3v-2h-5zm2-11V5h-2v5h5V8z"/></svg>'
+      };
+
+      function $(id) { return document.getElementById(id); }
+      var frame = $("player");
+      var ui = $("ui");
+      var seek = $("seek");
+
+      var S = {
+        status: null,
+        title: "",
+        volume: 100,       // last known volume (0-100)
+        premute: 100,      // volume to restore when un-muting
+        dragging: false,
+        dragPct: 0,
+        hold: null,        // {time, until}: keeps the bar steady right after a seek
+        hideTimer: null,
+        pointerOnUi: false,
+        popOpen: null,
+        kind: "dvd",       // "dvd" or "cd"
+        tracks: [],        // audio CD track list
+        album: "",
+        ready: false,       // VLC answered the status call
+        videoReady: false   // the Neko stream delivered its first frame
+      };
+
+      // ------------------------------------------------------------------ helpers
+      function fmt(sec) {
+        sec = Math.max(0, Math.floor(sec || 0));
+        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+        return (h ? h + ":" + (m < 10 ? "0" : "") + m : m) + ":" + (s < 10 ? "0" : "") + s;
+      }
+
+      function api(path, body) {
+        var opts = { method: body === undefined ? "GET" : "POST", headers: {} };
+        if (body !== undefined) {
+          opts.headers["Content-Type"] = "application/json";
+          opts.body = JSON.stringify(body);
+        }
+        return fetch(path, opts).then(function (r) {
+          return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+        });
+      }
+
+      var toastTimer = null;
+      function toast(text) {
+        var el = $("toast");
+        el.textContent = text;
+        el.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { el.classList.remove("show"); }, 1600);
+      }
+
+      // --------------------------------------------------------- show / hide controls
+      function showUi() {
+        ui.classList.remove("hidden");
+        clearTimeout(S.hideTimer);
+        var st = S.status;
+        var paused = st && st.state === "paused";
+        if (!paused && !S.pointerOnUi && !S.popOpen && !S.dragging) {
+          S.hideTimer = setTimeout(hideUi, 3500);
+        }
+      }
+      function hideUi() {
+        if (S.kind === "cd") return;  // nothing to look at behind the bar
+        if (S.pointerOnUi || S.popOpen || S.dragging) return;
+        var st = S.status;
+        if (st && st.state === "paused") return;
+        ui.classList.add("hidden");
+      }
+
+      document.addEventListener("mousemove", showUi);
+      document.addEventListener("touchstart", showUi, { passive: true });
+      document.addEventListener("keydown", showUi);
+      ["top", "bottom"].forEach(function (cls) {
+        var el = document.querySelector("." + cls);
+        el.addEventListener("mouseenter", function () { S.pointerOnUi = true; showUi(); });
+        el.addEventListener("mouseleave", function () { S.pointerOnUi = false; showUi(); });
+      });
+
+      // ------------------------------------------------------------------ commands
+      function cmd(action, value) {
+        var body = { action: action };
+        if (value !== undefined) body.value = value;
+        return api("/api/player/cmd", body).then(function (r) {
+          if (!r.ok) toast(r.body && r.body.error ? r.body.error : "Command failed");
+          setTimeout(poll, 250);
+          return r;
+        }, function () { toast("Connection lost"); });
+      }
+
+      function seekTo(sec) {
+        var st = S.status;
+        if (!st || !st.length) return;
+        sec = Math.max(0, Math.min(st.length - 1, Math.round(sec)));
+        S.hold = { time: sec, until: Date.now() + 1800 };
+        render();
+        cmd("seek", sec);
+      }
+      function skip(delta) {
+        var st = S.status;
+        if (!st || !st.length) return;
+        var cur = S.hold && Date.now() < S.hold.until ? S.hold.time : st.time || 0;
+        seekTo(cur + delta);
+      }
+      function togglePlay() {
+        if (S.needStart) { startDisc(); return; }
+        var st = S.status;
+        if (st) { st.state = st.state === "paused" ? "playing" : "paused"; render(); }
+        cmd("toggle");
+      }
+      function setVolume(v, silent) {
+        v = Math.max(0, Math.min(100, Math.round(v)));
+        S.volume = v;
+        $("volume").value = v;
+        renderVolume();
+        if (!silent) toast("Volume " + v + "%");
+        sendVolumeSoon();
+      }
+      var volTimer = null;
+      function sendVolumeSoon() {
+        clearTimeout(volTimer);
+        volTimer = setTimeout(function () { cmd("volume", S.volume); }, 120);
+      }
+      function toggleMute() {
+        if (S.volume > 0) { S.premute = S.volume; setVolume(0, true); toast("Muted"); }
+        else { setVolume(S.premute || 100, true); toast("Volume " + S.volume + "%"); }
+      }
+
+      // --------------------------------------------------------------------- render
+      function renderVolume() {
+        var v = S.volume;
+        $("mute").innerHTML = v === 0 ? ICON.mute : (v < 50 ? ICON.vol : ICON.volHigh);
+        $("mute").setAttribute("aria-label", v === 0 ? "Unmute" : "Mute");
+      }
+
+      function render() {
+        var st = S.status || {};
+        var playing = st.state === "playing";
+        if (playing && S.needStart) { S.needStart = false; S.started = true; $("start").classList.remove("show"); }
+        $("toggle").innerHTML = playing ? ICON.pause : ICON.play;
+        $("toggle").setAttribute("aria-label", playing ? "Pause" : "Play");
+
+        var length = st.length || 0;
+        var hasTime = length > 0;
+        var now = st.time || 0;
+        if (S.hold && Date.now() < S.hold.until) now = S.hold.time;
+        var pct = hasTime ? Math.min(100, (S.dragging ? S.dragPct : now / length * 100)) : 0;
+        if (S.dragging && hasTime) now = S.dragPct / 100 * length;
+
+        seek.classList.toggle("off", !hasTime);
+        $("seek-fill").style.width = pct + "%";
+        $("seek-thumb").style.left = pct + "%";
+        seek.setAttribute("aria-valuemax", length);
+        seek.setAttribute("aria-valuenow", Math.floor(now));
+        $("t-now").textContent = hasTime ? fmt(now) : "";
+        $("t-left").textContent = hasTime ? "-" + fmt(length - now) : "";
+
+        ["prev", "next", "rew", "fwd"].forEach(function (id) { $(id).disabled = !hasTime && id !== "prev" && id !== "next"; });
+        $("audio").disabled = !(st.audio && st.audio.length);
+        $("subs").disabled = !(st.subtitles && st.subtitles.length > 1);
+        renderMenus();
+        if (S.kind === "cd") renderTracks(st);
+      }
+
+      var lastTrack = -1;
+      function renderTracks(st) {
+        var cur = typeof st.track === "number" ? st.track : -1;
+        if (cur === lastTrack) return;
+        lastTrack = cur;
+        var items = $("av-tracks").children;
+        for (var i = 0; i < items.length; i++) items[i].classList.toggle("cur", i === cur);
+        if (cur >= 0 && items[cur]) {
+          items[cur].scrollIntoView({ block: "nearest" });
+          var t = S.tracks[cur];
+          if (t) document.title = t.title + " \u2013 " + S.album + " \u2013 Streamiso";
+        }
+      }
+
+      function buildAudioView(d) {
+        S.tracks = d.tracks || [];
+        S.album = d.title || "";
+        $("av-album").textContent = d.title || "";
+        $("av-artist").textContent = d.artist || "";
+        if (d.cover) {
+          $("av-cover").src = d.cover;
+          $("av-bg").style.backgroundImage = "url(" + JSON.stringify(d.cover) + ")";
+        }
+        var list = $("av-tracks");
+        list.innerHTML = "";
+        S.tracks.forEach(function (t, i) {
+          var li = document.createElement("li");
+          li.tabIndex = 0;
+          var n = document.createElement("span"); n.className = "n"; n.textContent = String(t.n);
+          var title = document.createElement("span"); title.className = "t"; title.textContent = t.title;
+          var dur = document.createElement("span"); dur.className = "d"; dur.textContent = t.length ? fmt(t.length) : "";
+          li.appendChild(n); li.appendChild(title); li.appendChild(dur);
+          function go() { cmd("track", i); }
+          li.addEventListener("click", go);
+          li.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); go(); }
+          });
+          list.appendChild(li);
+        });
+        $("audioview").hidden = false;
+        document.body.classList.add("audio");
+        $("prev").title = "Previous track"; $("prev").setAttribute("aria-label", "Previous track");
+        $("next").title = "Next track"; $("next").setAttribute("aria-label", "Next track");
+      }
+
+      function menuItems(list, current, onPick, container, heading) {
+        container.innerHTML = "";
+        var h = document.createElement("h4");
+        h.textContent = heading;
+        container.appendChild(h);
+        if (!list.length) {
+          var e = document.createElement("div");
+          e.className = "empty";
+          e.textContent = "Not available";
+          container.appendChild(e);
+          return;
+        }
+        list.forEach(function (t) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "item" + (t.selected ? " sel" : "");
+          b.textContent = t.id === -1 ? "Off" : t.name;
+          b.addEventListener("click", function () { onPick(t); closePop(); });
+          container.appendChild(b);
+        });
+      }
+
+      var lastMenuKey = "";
+      function renderMenus() {
+        var st = S.status || {};
+        var key = JSON.stringify([st.audio, st.subtitles]);
+        if (key === lastMenuKey) return;
+        lastMenuKey = key;
+        menuItems(st.audio || [], null, function (t) { cmd("audio", t.id); toast("Audio: " + t.name); }, $("pop-audio"), "Audio");
+        menuItems(st.subtitles || [], null, function (t) {
+          cmd("subtitle", t.id);
+          toast(t.id === -1 ? "Subtitles off" : "Subtitles: " + t.name);
+        }, $("pop-subs"), "Subtitles");
+      }
+
+      function closePop() {
+        if (S.popOpen) S.popOpen.classList.remove("open");
+        S.popOpen = null;
+        showUi();
+      }
+      function togglePop(el) {
+        var open = S.popOpen === el;
+        closePop();
+        if (!open) { el.classList.add("open"); S.popOpen = el; clearTimeout(S.hideTimer); }
+      }
+
+      // The generic loading cover stays up until VLC is running AND the stream has started,
+      // which also hides Neko's own "connecting" screen. After a timeout it is lifted anyway,
+      // so a connection problem shows Neko's error instead of an endless spinner.
+      // Audio CDs open paused so that their first seconds are not played before the browser's audio
+      // is connected. Called when the bridge reports audible sound, or as a fallback if it never does.
+      function resumeCd() {
+        if (S.kind !== "cd" || S.resumed) return;
+        S.resumed = true;
+        setTimeout(function () { cmd("start"); }, 250);
+      }
+
+      // DVDs open paused and wait for a click on the big button. The click is a real user gesture, so the
+      // browser allows sound, and the video gets the keyboard focus (and, through the bridge, control).
+      function showStart() {
+        if (S.kind !== "dvd" || S.needStart || S.started) return;
+        S.needStart = true;
+        $("start-name").textContent = S.title;
+        $("start-sub").textContent = S.resumeAt ? "Continue from " + fmt(S.resumeAt) : "";
+        $("start").classList.add("show");
+        try { $("start").focus(); } catch (e) { /* ignore */ }
+      }
+      function startDisc() {
+        if (!S.needStart) return;
+        S.needStart = false;
+        S.started = true;
+        $("start").classList.remove("show");
+        try {
+          frame.focus();
+          frame.contentWindow.postMessage({ streamiso: true, type: "start" }, "*");
+        } catch (e) { /* ignore */ }
+        cmd("start");
+      }
+      $("start").addEventListener("click", startDisc);
+
+      function revealIfReady() {
+        if (S.ready && S.videoReady && !S.resumeBusy) {
+          $("loading").classList.add("done");
+          showStart();
+          refocusVideo();  // keys and the remote go straight to the disc menu
+          if (S.kind === "cd") setTimeout(resumeCd, 8000);  // fallback: the bridge never reported sound
+        }
+      }
+      setTimeout(function () { S.videoReady = true; revealIfReady(); }, 25000);
+
+      // ------------------------------------------------------------------- polling
+      var polling = false;
+      function poll() {
+        if (polling || document.hidden) return;
+        polling = true;
+        api("/api/player/status").then(function (r) {
+          polling = false;
+          var st = r.body;
+          if (st.state === "idle") { location.replace("/"); return; }
+          if (st.state === "offline") { return; }
+          S.status = st;
+          if (!S.ready) {
+            S.ready = true;
+            if (S.resumePending) {
+              // jump to the saved position while the disc is still paused, then reveal
+              S.resumePending = false;
+              S.resumeBusy = true;
+              cmd("resume_apply").then(function () {
+                S.resumeBusy = false;
+                revealIfReady();
+              }, function () { S.resumeBusy = false; revealIfReady(); });
+            }
+            if (st.state === "playing") S.started = true;  // already running (page reopened)
+            revealIfReady();
+            // VLC may report 0 before its audio output exists, so only trust a real value
+            if (st.volume) { S.volume = st.volume; $("volume").value = st.volume; renderVolume(); }
+            showUi();
+          }
+          render();
+        }, function () { polling = false; });
+      }
+      setInterval(poll, 1000);
+      document.addEventListener("visibilitychange", poll);
+
+      // ----------------------------------------------------------------- seek bar
+      function pctFromEvent(e) {
+        var rect = seek.getBoundingClientRect();
+        return Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
+      }
+      function showTip(e) {
+        var st = S.status;
+        if (!st || !st.length) return;
+        var p = pctFromEvent(e);
+        $("seek-tip").style.left = p + "%";
+        $("seek-tip").textContent = fmt(p / 100 * st.length);
+      }
+      seek.addEventListener("pointerdown", function (e) {
+        if (!S.status || !S.status.length) return;
+        S.dragging = true;
+        S.dragPct = pctFromEvent(e);
+        seek.classList.add("drag");
+        try { seek.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+        showTip(e); render();
+      });
+      seek.addEventListener("pointermove", function (e) {
+        showTip(e);
+        if (S.dragging) { S.dragPct = pctFromEvent(e); render(); }
+      });
+      function endDrag(e, commit) {
+        if (!S.dragging) return;
+        S.dragging = false;
+        seek.classList.remove("drag");
+        if (commit && S.status) seekTo(S.dragPct / 100 * S.status.length);
+        showUi();
+      }
+      seek.addEventListener("pointerup", function (e) { endDrag(e, true); });
+      seek.addEventListener("pointercancel", function (e) { endDrag(e, false); });
+      seek.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowLeft") { skip(-10); e.preventDefault(); e.stopPropagation(); }
+        else if (e.key === "ArrowRight") { skip(10); e.preventDefault(); e.stopPropagation(); }
+      });
+
+      // ------------------------------------------------------------------ buttons
+      function refocusVideo() { try { frame.focus(); } catch (e) { /* ignore */ } }
+
+      $("toggle").addEventListener("click", function () { togglePlay(); });
+      $("prev").addEventListener("click", function () { cmd("chapter_prev"); });
+      $("next").addEventListener("click", function () { cmd("chapter_next"); });
+      $("rew").addEventListener("click", function () { skip(-10); });
+      $("fwd").addEventListener("click", function () { skip(10); });
+      $("mute").addEventListener("click", toggleMute);
+      $("volume").addEventListener("input", function () { setVolume(parseInt(this.value, 10), true); });
+      $("dvdmenu").addEventListener("click", function () { cmd("menu"); refocusVideo(); });
+      $("audio").addEventListener("click", function () { togglePop($("pop-audio")); });
+      $("subs").addEventListener("click", function () { togglePop($("pop-subs")); });
+      document.addEventListener("click", function (e) {
+        if (S.popOpen && !S.popOpen.contains(e.target) && e.target.id !== "audio" && e.target.id !== "subs" &&
+            !$("audio").contains(e.target) && !$("subs").contains(e.target)) closePop();
+      });
+
+      // fullscreen (whole page, so the bar stays on top of the video)
+      var fsTarget = document.documentElement;
+      var fsSupported = !!(fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen);
+      function inFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+      function toggleFullscreen() {
+        if (!fsSupported) return;
+        try {
+          if (inFullscreen()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+          else { (fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen).call(fsTarget); }
+        } catch (e) { /* ignore */ }
+      }
+      function renderFs() { $("full").innerHTML = inFullscreen() ? ICON.fsExit : ICON.fs; }
+      if (!fsSupported) $("full").style.display = "none";
+      document.addEventListener("fullscreenchange", renderFs);
+      document.addEventListener("webkitfullscreenchange", renderFs);
+      $("full").addEventListener("click", function () { toggleFullscreen(); refocusVideo(); });
+      renderFs();
+      renderVolume();
+      $("toggle").innerHTML = ICON.play;
+
+      // Back: stop the disc and return to the library.
+      function goBack() {
+        try { sessionStorage.removeItem("streamisoPlaying"); } catch (e) { /* ignore */ }
+        function go() { location.replace("/"); }
+        fetch("/api/stop", { method: "POST" }).then(go, go);
+      }
+      $("back").addEventListener("click", goBack);
+
+      // -------------------------------------------------------- keyboard and remote
+      function action(name) {
+        switch (name) {
+          case "toggle": togglePlay(); break;
+          case "forward": skip(10); break;
+          case "rewind": skip(-10); break;
+          case "nav-up": case "nav-down": case "nav-left": case "nav-right": case "nav-activate":
+            if (S.kind === "dvd") cmd("nav", name.slice(4));
+            break;
+          case "next": cmd("chapter_next"); break;
+          case "prev": cmd("chapter_prev"); break;
+          case "stop":
+          case "back": goBack(); break;
+          default: break;
+        }
+      }
+
+      // Keys pressed while the video (Neko) has the focus are reported by the bridge in the iframe.
+      window.addEventListener("message", function (e) {
+        if (e.source !== frame.contentWindow) return;
+        var d = e.data;
+        if (!d || d.streamiso !== true) return;
+        if (d.type === "video-ready") { S.videoReady = true; revealIfReady(); }
+        else if (d.type === "audio-state" && S.kind === "cd") {
+          // Sound is blocked until the viewer clicks Neko's own play/unmute button: show it.
+          frame.classList.toggle("front", !d.ok);
+          document.body.classList.toggle("unlock", !d.ok);
+          // The CD opens paused; start it once sound can really be heard.
+          if (d.ok) resumeCd();
+        }
+        else if (d.type === "activity") showUi();
+        else if (d.type === "key" && typeof d.action === "string") { showUi(); action(d.action); }
+      });
+
+      // Shortcuts when the page itself has the focus (outside the iframe)
+      document.addEventListener("keydown", function (e) {
+        var t = e.target;
+        var tag = t && t.tagName;
+        if (tag === "INPUT" || tag === "BUTTON" || (t && t.id === "seek")) {
+          if (e.key === "Escape") closePop();
+          return;
+        }
+        switch (e.key) {
+          case " ": case "k": togglePlay(); break;
+          case "ArrowLeft": skip(-10); break;
+          case "ArrowRight": skip(10); break;
+          case "ArrowUp": setVolume(S.volume + 5); break;
+          case "ArrowDown": setVolume(S.volume - 5); break;
+          case "m": toggleMute(); break;
+          case "f": toggleFullscreen(); break;
+          case "Escape": closePop(); break;
+          default: return;
+        }
+        e.preventDefault();
+      });
+
+      // ------------------------------------------------------------------- startup
+      api("/api/player").then(function (r) {
+        var d = r.body;
+        S.resumePending = !!d.resume;
+        S.resumeAt = d.resume_at || 0;
+        if (d.kind === "cd") { S.kind = "cd"; buildAudioView(d); }
+        if (d.title) {
+          S.title = d.title;
+          document.title = d.title + " – Streamiso";
+          $("title").textContent = d.title;
+          $("loading-title").textContent = d.title;
+        }
+        frame.addEventListener("load", refocusVideo);
+        frame.src = d.url;
+      });
+      poll();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Streamiso</title>
+  <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0d0f1c">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1><img src="/static/logo.svg" alt="Streamiso" class="logo"></h1>
+    <span id="count" class="muted"></span>
+    <div class="spacer"></div>
+    <input id="filter" type="search" placeholder="Filter…" autocomplete="off">
+    <select id="sort" aria-label="Sort by">
+      <option value="title">Title (A–Z)</option>
+      <option value="year-desc">Year (newest)</option>
+      <option value="year-asc">Year (oldest)</option>
+      <option value="added">Recently added</option>
+      <option value="series">Series &amp; season</option>
+    </select>
+    <select id="genre" aria-label="Genre"><option value="">All genres</option></select>
+    <select id="kind" aria-label="Type">
+      <option value="">All types</option>
+      <option value="dvd">DVDs</option>
+      <option value="cd">Music CDs</option>
+    </select>
+    <select id="status" aria-label="Watched status">
+      <option value="">All</option>
+      <option value="unwatched">Unwatched</option>
+      <option value="watched">Watched</option>
+    </select>
+    <button id="rescan" type="button" title="Look for new ISO files">Refresh</button>
+  </header>
+
+  <main>
+    <div id="grid"></div>
+    <p id="empty" class="muted" hidden></p>
+  </main>
+
+  <div id="opening" hidden>
+    <div>
+      <div class="spinner"></div>
+      <p id="opening-title"></p>
+      <p class="muted">Opening disc…</p>
+    </div>
+  </div>
+
+  <div id="editor" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ed-heading">
+    <form id="ed-form" class="panel" autocomplete="off">
+      <h2 id="ed-heading">Edit disc</h2>
+      <p id="ed-info" class="muted small"></p>
+
+      <div class="ed-grid">
+        <div class="ed-cover">
+          <img id="ed-cover" alt="Current cover">
+          <label class="btn" for="ed-cover-file">Change cover</label>
+          <input id="ed-cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <button type="button" id="ed-cover-remove">Remove custom cover</button>
+          <p id="ed-cover-note" class="muted small" hidden></p>
+        </div>
+
+        <div class="ed-fields">
+          <label>Title
+            <input id="ed-title" type="text" maxlength="200">
+          </label>
+          <div class="row">
+            <label>Year
+              <input id="ed-year" type="number" min="1888" max="2100">
+            </label>
+            <label class="grow">Series
+              <input id="ed-series" type="text" maxlength="120" list="series-list">
+            </label>
+            <label>Season
+              <input id="ed-season" type="number" min="0" max="999">
+            </label>
+            <label>Disc
+              <input id="ed-disc" type="number" min="1" max="999">
+            </label>
+          </div>
+          <label>Genres <span class="muted small">(comma-separated, or click below)</span>
+            <input id="ed-genres" type="text">
+          </label>
+          <div id="ed-chips" class="chips"></div>
+          <label>Synopsis
+            <textarea id="ed-synopsis" rows="5" maxlength="4000"></textarea>
+          </label>
+          <div class="lookup">
+            <label class="grow">Search online as
+              <input id="ed-query" type="text" maxlength="200" placeholder="Name of the series, film or album">
+            </label>
+            <button type="button" id="ed-lookup">Search again</button>
+          </div>
+          <p id="ed-lookup-note" class="muted small" hidden></p>
+          <label class="check"><input id="ed-watched" type="checkbox"> <span id="ed-watched-label">Watched</span></label>
+        </div>
+      </div>
+
+      <p id="ed-error" class="error" hidden></p>
+      <div class="actions">
+        <button type="button" id="ed-reset" class="danger">Clear edits</button>
+        <div class="spacer"></div>
+        <button type="button" id="ed-cancel">Cancel</button>
+        <button type="submit" id="ed-save" class="primary">Save</button>
+      </div>
+    </form>
+    <datalist id="series-list"></datalist>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

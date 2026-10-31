@@ -1,0 +1,4 @@
+# Keep LF line endings everywhere: the shell scripts run inside Linux containers.
+* text=auto eol=lf
+*.png binary
+*.ico binary
