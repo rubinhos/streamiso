@@ -45,6 +45,7 @@ services:
       NEKO_USER: "tv"
       NEKO_PASSWORD: "${NEKO_PASSWORD:-neko}"
       NEKO_PUBLIC_URL: "${NEKO_PUBLIC_URL:-}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-}"
       VLC_RC_HOST: "neko"
       VLC_RC_PORT: "4212"
       TMDB_API_KEY: "${TMDB_API_KEY:-}"

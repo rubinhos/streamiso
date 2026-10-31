@@ -45,6 +45,10 @@ VLC_RC = VlcRc(os.environ.get("VLC_RC_HOST", "neko"), int(os.environ.get("VLC_RC
 
 NEKO_PORT = os.environ.get("NEKO_PORT", "8081")
 NEKO_PUBLIC_URL = os.environ.get("NEKO_PUBLIC_URL", "").rstrip("/")
+# Other apps (a TV app, say) may call the API from a different origin only if listed here:
+# comma-separated origins, "*" for any, empty (default) to turn CORS off. A packaged app that runs
+# from a file:// URL sends the origin "null".
+CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGIN", "").split(",") if o.strip()]
 NEKO_USER = os.environ.get("NEKO_USER", "tv")
 NEKO_PASSWORD = os.environ.get("NEKO_PASSWORD", "neko")
 
@@ -688,6 +692,22 @@ def neko_url() -> str:
 # --------------------------------------------------------------------------
 # Routes
 # --------------------------------------------------------------------------
+@app.after_request
+def add_cors_headers(resp):
+    if CORS_ORIGINS and request.path.startswith("/api/"):
+        origin = request.headers.get("Origin", "")
+        if "*" in CORS_ORIGINS:
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+        elif origin in CORS_ORIGINS:
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers.add("Vary", "Origin")
+        if "Access-Control-Allow-Origin" in resp.headers:
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            resp.headers["Access-Control-Max-Age"] = "600"
+    return resp
+
+
 @app.get("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
