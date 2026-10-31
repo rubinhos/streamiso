@@ -48,6 +48,10 @@ button { cursor: pointer; }
 input:focus, button:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 
 main { padding: 8px 40px 60px; }
+/* Nothing on these pages is meant to be selected or copied (it also keeps long presses on a TV or phone
+   from selecting text); the fields you type in stay normal. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
 
 .ed-cover [hidden] { display: none; }
 .lookup { display: flex; align-items: flex-end; gap: 10px; }
