@@ -266,7 +266,7 @@ Looked up in this order:
 
 1. A cover uploaded in the edit dialog (stored in `data/covers_custom`)
 2. An image next to the ISO with the same name (`Matrix.iso` + `Matrix.jpg`; `.png` and `.webp` work too)
-3. `cover`, `folder`, `poster` or `front` (`.jpg` / `.png` / `.webp`) in the ISO's folder, **only if the folder contains a single ISO** (the Portuguese names `capa`, `frente` and `capa-frente` also work)
+3. `cover`, `folder`, `poster` or `front` (`.jpg` / `.png` / `.webp`) in the ISO's folder, **only if the folder contains a single ISO**
 4. TMDB, if `TMDB_API_KEY` is set. The file name is used for the search; `Title (1999).iso` improves matches
 5. A generated cover with the title
 

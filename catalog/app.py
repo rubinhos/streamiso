@@ -65,7 +65,7 @@ MAX_COVER_BYTES = 8 * 1024 * 1024
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
 CUSTOM_EXTS = (".jpg", ".png", ".webp")
 # Folder-level cover names (used only when the folder holds a single ISO).
-FOLDER_COVER_NAMES = ("cover", "folder", "poster", "front", "capa", "frente", "capa-frente")
+FOLDER_COVER_NAMES = ("cover", "folder", "poster", "front")
 # File names that say nothing about the disc, so the folder name / volume label is used instead.
 _cue_warned: set[tuple[str, int]] = set()
 GENERIC_TITLES = {"videots", "dvd", "dvdvideo", "disc", "disco", "movie", "filme", "video"}
