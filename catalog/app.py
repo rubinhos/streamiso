@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Streamiso - catalog service.
+"""StreamISO - catalog service.
 
 Scans a folder for DVD .iso images, reads each volume label, builds the library
 with covers (custom cover > image next to the ISO > TMDB > generated placeholder)

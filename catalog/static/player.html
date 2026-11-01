@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Streamiso</title>
+  <title>StreamISO</title>
   <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon.ico" sizes="48x48">
   <link rel="apple-touch-icon" href="/static/icons/icon-180.png">
@@ -436,7 +436,7 @@
         if (cur >= 0 && items[cur]) {
           items[cur].scrollIntoView({ block: "nearest" });
           var t = S.tracks[cur];
-          if (t) document.title = t.title + " \u2013 " + S.album + " \u2013 Streamiso";
+          if (t) document.title = t.title + " \u2013 " + S.album + " \u2013 StreamISO";
         }
       }
 
@@ -743,7 +743,7 @@
         if (d.kind === "cd") { S.kind = "cd"; buildAudioView(d); }
         if (d.title) {
           S.title = d.title;
-          document.title = d.title + " – Streamiso";
+          document.title = d.title + " – StreamISO";
           $("title").textContent = d.title;
           $("loading-title").textContent = d.title;
         }

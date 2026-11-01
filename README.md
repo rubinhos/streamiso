@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-    <img src="assets/logo-light.svg" alt="Streamiso" width="520">
+    <img src="assets/logo-light.svg" alt="StreamISO" width="520">
   </picture>
 </p>
 
@@ -18,9 +18,9 @@
   <img alt="Status: early prototype" src="https://img.shields.io/badge/status-early%20prototype-orange">
 </p>
 
-# Streamiso
+# StreamISO
 
-Streamiso scans folders of DVD `.iso` images and audio CD images (`.cue` + `.bin`), shows them as a poster grid,
+StreamISO scans folders of DVD `.iso` images and audio CD images (`.cue` + `.bin`), shows them as a poster grid,
 and plays them with the original menus, extras, audio tracks and subtitles. Playback is **real disc navigation**
 (VLC + libdvdnav) running on your server and streamed to the browser over WebRTC, so a TV or any device with a
 modern browser can use your discs without decoding anything itself.
@@ -31,7 +31,7 @@ modern browser can use your discs without decoding anything itself.
 
 <p align="center">
   <img src="assets/screenshots/catalog.jpg" alt="Catalog" width="640"><br>
-  <sub>Streamiso user catalog</sub>
+  <sub>StreamISO user catalog</sub>
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@ modern browser can use your discs without decoding anything itself.
 
 ## About this project (read this first)
 
-**Streamiso is a "vibe coded" project.** It was designed, written and debugged in a long conversation between its
+**StreamISO is a "vibe coded" project.** It was designed, written and debugged in a long conversation between its
 author, who steered the idea and tested every build on a real home server, and an AI assistant
 ([Claude](https://claude.ai) by Anthropic), which wrote essentially all of the code and this documentation.
 
@@ -61,7 +61,7 @@ Bug reports, fixes and tests are very welcome. See [Contributing](#contributing)
 A shelf of DVDs and CDs you own is awkward to use: the discs are in a box, the TV has no drive, and ripping to
 plain video files throws away the menus, extras, language and subtitle choices that make a DVD a DVD.
 
-Streamiso keeps the disc **as it is** (an `.iso` or a BIN/CUE image) and gives it a modern front door: a poster library,
+StreamISO keeps the disc **as it is** (an `.iso` or a BIN/CUE image) and gives it a modern front door: a poster library,
 search and filters, covers and metadata, a streaming-style player with a seek bar, and "continue where you left off".
 The server does the work that an old DVD player would do, and any screen with a browser becomes the TV.
 
@@ -113,8 +113,8 @@ Browser / TV ──> catalog (port 8080) ── writes ──> ./state/current �
 
 Some of the decisions behind the code, for anyone reading or contributing:
 
-- **Do not re-implement a DVD player.** DVD menus are programs (a virtual machine on the disc). VLC with libdvdnav already runs them, so Streamiso drives a real VLC and streams its screen, instead of trying to play ISO files in the browser.
-- **Neko for the streaming.** Neko already turns a Linux desktop into a low-latency WebRTC stream with input forwarding. Streamiso uses its VLC image as is, and adds a small injected script (`neko/neko-inject.html`, applied at container start by `neko/patch-neko.sh`) that reports mouse activity, media keys and "video is ready" to the page that embeds it.
+- **Do not re-implement a DVD player.** DVD menus are programs (a virtual machine on the disc). VLC with libdvdnav already runs them, so StreamISO drives a real VLC and streams its screen, instead of trying to play ISO files in the browser.
+- **Neko for the streaming.** Neko already turns a Linux desktop into a low-latency WebRTC stream with input forwarding. StreamISO uses its VLC image as is, and adds a small injected script (`neko/neko-inject.html`, applied at container start by `neko/patch-neko.sh`) that reports mouse activity, media keys and "video is ready" to the page that embeds it.
 - **VLC's rc interface as the control channel.** Everything the control bar does (state, time, seek, volume, chapters, audio and subtitle tracks, DVD menu) goes through VLC's text-based remote-control interface on an internal port. `catalog/vlcrc.py` is a small client for it.
 - **Audio CDs as one continuous raw stream.** A BIN image is played with VLC's `rawaud` demuxer as a single 44.1 kHz stereo stream, and a track is just a time offset taken from the cue sheet (`catalog/cdimage.py`). That gives gapless playback and cheap seeking.
 - **Discs open paused.** The browser's audio and video connect a moment after VLC starts, so the first seconds used to be lost. VLC now starts paused and is released once the browser is connected (CDs) or the viewer clicks the big play button (DVDs).
@@ -215,7 +215,7 @@ tests: `TMDB_API_URL`, `TMDB_IMAGE_URL`, `MUSICBRAINZ_URL`, `COVERART_URL`, `VLC
 | [TMDB](https://www.themoviedb.org) | DVD covers, synopses, genres | Free API key (`TMDB_API_KEY`) |
 | [MusicBrainz](https://musicbrainz.org) and [Cover Art Archive](https://coverartarchive.org) | CD album data and covers | None (a contact in `MUSICBRAINZ_CONTACT` is requested by MusicBrainz) |
 
-Streamiso itself has no JavaScript or Python dependencies beyond the two listed packages.
+StreamISO itself has no JavaScript or Python dependencies beyond the two listed packages.
 
 ## What is done and what is not
 
@@ -293,7 +293,7 @@ For audio CDs the lookup uses MusicBrainz: it tries the title with the artist fr
 
 ### Titles
 
-The title comes from the file name. If the name is generic (`VIDEO_TS.iso`, `dvd.iso`, `disc1.iso`), Streamiso uses
+The title comes from the file name. If the name is generic (`VIDEO_TS.iso`, `dvd.iso`, `disc1.iso`), StreamISO uses
 the folder name (when the folder holds a single ISO) and finally the volume label stored inside the ISO.
 
 A "one folder per DVD" layout works well:
@@ -327,7 +327,7 @@ Tip: edit from a desktop or phone. Typing with a TV remote is painful; on the TV
 
 - **Library**: arrow keys move focus, OK / Enter opens the disc.
 - **Player**: key presses go to VLC. Arrows navigate the DVD menu, Enter selects. Move the mouse (or touch the screen) to show the control bar; it hides itself after a few seconds of inactivity while playing.
-- **Loading screen**: while VLC starts and the stream connects, Streamiso shows its own spinner instead of Neko's connecting screen. If the stream has not started after 25 seconds the cover is lifted, so connection errors stay visible.
+- **Loading screen**: while VLC starts and the stream connects, StreamISO shows its own spinner instead of Neko's connecting screen. If the stream has not started after 25 seconds the cover is lifted, so connection errors stay visible.
 - **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **DVD menu**, audio track, subtitles, fullscreen. Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
 - **Remote / keyboard media keys**: play/pause, rewind, fast-forward, next/previous and stop work while the video has focus. Stop and the remote's Back key return to the library.
 - **Back arrow** (top left) stops the disc and returns to the library; the browser's Back button does the same.
@@ -337,7 +337,7 @@ Tip: edit from a desktop or phone. Typing with a TV remote is painful; on the TV
 
 Discs open paused. Audio CDs start by themselves as soon as the browser's audio is connected (or after 8 seconds at most). DVDs show a big **play button**: clicking it starts the disc, allows sound in the browser and hands the keyboard focus (and, if possible, control of the desktop) to the video. If Neko does not have control, the arrow keys and Enter of a remote are sent to the DVD menu directly through VLC.
 
-Streamiso remembers where you stopped, for DVDs and for audio CDs (for CDs, the track and the time in it). Discs with a saved position show a thin progress bar and a line like *Continue at 1:23:10*; clicking the disc continues from there (5 seconds earlier). The **↺** button on a disc starts it over. Positions are saved while the player page is open, in `data/resume.json`, and cleared when a disc reaches its end. DVDs shorter than 5 minutes and the first 30 seconds (10 for CDs) are not saved.
+StreamISO remembers where you stopped, for DVDs and for audio CDs (for CDs, the track and the time in it). Discs with a saved position show a thin progress bar and a line like *Continue at 1:23:10*; clicking the disc continues from there (5 seconds earlier). The **↺** button on a disc starts it over. Positions are saved while the player page is open, in `data/resume.json`, and cleared when a disc reaches its end. DVDs shorter than 5 minutes and the first 30 seconds (10 for CDs) are not saved.
 
 ## Audio CDs (BIN/CUE)
 
@@ -352,14 +352,14 @@ Put the `.cue` sheet and its `.bin` image anywhere in `CD_DIR`, for example:
 
 - They show up in the library with a **CD** tag, the artist and the track count. Use the **All types** filter to show only DVDs or only CDs.
 - The title, artist, year and genre come from the cue sheet (`TITLE`, `PERFORMER`, `REM DATE`, `REM GENRE`) and can be edited like any other disc. Covers follow the same rules as DVDs (an image next to the `.cue`, a cover in the folder, or one you upload). Missing covers, years and genres are looked up automatically (see below).
-- **Automatic lookup**: for each CD, Streamiso searches MusicBrainz by album title and artist (an exact title match is required, so a wrong album is rarer than a missing one) and takes the year, up to three genres and the front cover from the Cover Art Archive. This runs in the background after a scan, once per album, at most one request per second, and never replaces a cover you provided or a genre written in the cue sheet. Delete the album's file in `data/meta` to look it up again.
+- **Automatic lookup**: for each CD, StreamISO searches MusicBrainz by album title and artist (an exact title match is required, so a wrong album is rarer than a missing one) and takes the year, up to three genres and the front cover from the Cover Art Archive. This runs in the background after a scan, once per album, at most one request per second, and never replaces a cover you provided or a genre written in the cue sheet. Delete the album's file in `data/meta` to look it up again.
 - The player shows the cover, the track list (click a track to jump to it) and the usual control bar. **Previous** restarts the current track, and goes to the previous one if pressed within the first 3 seconds, like a CD player.
 - The whole image is one continuous stream, so playback between tracks is gapless.
 
 Supported: one image file with all tracks, every track `AUDIO` (raw 16-bit 44.1 kHz stereo, `BINARY` or `MOTOROLA`). A cue sheet that points to a single WAV, FLAC, MP3 or AIFF file also works.
 Not supported yet: images split into one file per track, and mixed-mode CDs with data tracks. Skipped sheets are listed in the catalog log (`docker logs streamiso-catalog`).
 
-The first time, the browser may block sound until you click once: Streamiso then brings Neko's play button forward, so click it.
+The first time, the browser may block sound until you click once: StreamISO then brings Neko's play button forward, so click it.
 
 ## Blu-ray
 
@@ -367,7 +367,7 @@ Not supported yet. VLC 3 plays unprotected Blu-ray images with limited menus and
 
 ## Running on Windows
 
-Streamiso was tested by its author on **Windows 11 with Docker Desktop (WSL 2 backend)**, using a PC browser and a phone
+StreamISO was tested by its author on **Windows 11 with Docker Desktop (WSL 2 backend)**, using a PC browser and a phone
 browser on the same Wi-Fi (WSL 3.0.3, Docker 29.9.2). The catalog is plain HTTP, but the video is WebRTC over UDP, so
 `SERVER_IP` must be an address the *viewing device* can reach.
 
@@ -391,12 +391,12 @@ What worked:
 
 2. In PowerShell **as administrator**, allow inbound traffic to WSL in the Hyper-V firewall (`{40E0AC32-...}` is the fixed
    ID of WSL, see [Microsoft's documentation](https://learn.microsoft.com/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall)),
-   and open the Streamiso ports in the Windows firewall (the network must be marked **Private**):
+   and open the StreamISO ports in the Windows firewall (the network must be marked **Private**):
 
    ```powershell
    Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
-   New-NetFirewallRule -DisplayName "Streamiso TCP" -Direction Inbound -Protocol TCP -LocalPort 8080,8081 -Action Allow -Profile Private
-   New-NetFirewallRule -DisplayName "Streamiso UDP" -Direction Inbound -Protocol UDP -LocalPort 52000-52100 -Action Allow -Profile Private
+   New-NetFirewallRule -DisplayName "StreamISO TCP" -Direction Inbound -Protocol TCP -LocalPort 8080,8081 -Action Allow -Profile Private
+   New-NetFirewallRule -DisplayName "StreamISO UDP" -Direction Inbound -Protocol UDP -LocalPort 52000-52100 -Action Allow -Profile Private
    ```
 
 3. Run `wsl --shutdown`, quit Docker Desktop from the tray icon and start it again.
@@ -434,7 +434,7 @@ Check that VLC is running (`docker exec streamiso-neko pgrep -a vlc`) and that t
 with a small script (`neko/patch-neko.sh`, `neko/neko-inject.html`) that reports mouse and key activity. Check
 `docker exec streamiso-neko cat /var/log/neko/streamiso-patch.log`. Moving the mouse over the top or bottom edge of the page always works.
 
-**Neko's own buttons (resolution, clipboard, picture-in-picture) show up.** Streamiso opens Neko with `cast=1`, which hides them.
+**Neko's own buttons (resolution, clipboard, picture-in-picture) show up.** StreamISO opens Neko with `cast=1`, which hides them.
 If you use `NEKO_PUBLIC_URL` with a custom front page, make sure the parameter is not stripped.
 
 **Pinning the Neko version.** Set `NEKO_IMAGE` in `.env` to a specific release tag of `ghcr.io/m1k1o/neko/vlc` if a new Neko release changes behavior.
@@ -497,20 +497,20 @@ review, bug reports and tests are especially valuable.
 
 ## License
 
-Streamiso is released under the [Apache License 2.0](LICENSE). You may use, modify and distribute it, including commercially,
+StreamISO is released under the [Apache License 2.0](LICENSE). You may use, modify and distribute it, including commercially,
 as long as you keep the copyright notice and the [`NOTICE`](NOTICE) file and state any changes you made. Contributions you
 submit are licensed under the same terms (section 5 of the license).
 
 Third-party components keep their own licenses: Neko is Apache-2.0, and VLC and libdvdnav (GPL) run in a separate container
-that Streamiso only talks to over the network, so they are not part of this project's code.
+that StreamISO only talks to over the network, so they are not part of this project's code.
 
 ## Credits
 
 - Built by Rubens ([@rubinhos](https://github.com/rubinhos)) in conversation with [Claude](https://claude.ai) (Anthropic), which wrote the code.
-- The Streamiso icon is original artwork released with this project.
+- The StreamISO icon is original artwork released with this project.
 - [Neko](https://github.com/m1k1o/neko) (virtual browser / WebRTC streaming, Apache-2.0) and [VLC](https://www.videolan.org/vlc/) with libdvdnav
 - [Flask](https://flask.palletsprojects.com) and [Gunicorn](https://gunicorn.org)
 - Album data from [MusicBrainz](https://musicbrainz.org) and covers from the [Cover Art Archive](https://coverartarchive.org).
 - This product uses the TMDB API but is not endorsed or certified by TMDB.
 
-"Streamiso" is not affiliated with Stremio.
+"StreamISO" is not affiliated with Stremio.

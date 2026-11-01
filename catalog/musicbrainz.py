@@ -21,7 +21,7 @@ MAX_COVER_BYTES = 8 * 1024 * 1024
 
 def user_agent(version: str) -> str:
     contact = os.environ.get("MUSICBRAINZ_CONTACT", "").strip()
-    return f"Streamiso/{version}" + (f" ( {contact} )" if contact else "")
+    return f"StreamISO/{version}" + (f" ( {contact} )" if contact else "")
 
 
 def _norm(text: str) -> str:

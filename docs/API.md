@@ -1,4 +1,4 @@
-# Streamiso HTTP API
+# StreamISO HTTP API
 
 The catalog service (`catalog/app.py`, port `CATALOG_PORT`, 8080 by default) serves both the web page and
 a small JSON API. The web page uses nothing else, so any other client (a TV app, a phone remote, a script)
@@ -176,7 +176,7 @@ Closes VLC and clears the screen. Returns `{"ok": true}`.
 The picture and sound are not part of this API. They are a WebRTC stream served by the player container
 (Neko). The simplest way to show them is an `<iframe src="<url from /api/player>">`; the URL already asks for
 the minimal "cast" view with no Neko interface. A custom client could speak Neko's own protocol instead, but
-nothing in Streamiso depends on that.
+nothing in StreamISO depends on that.
 
 The Neko page is patched with a small script (`neko/neko-inject.html`) that talks to the page that embeds it
 with `postMessage`. Every message has `streamiso: true`:

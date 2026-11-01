@@ -1,7 +1,7 @@
 <!-- streamiso-patch -->
 <script id="streamiso-patch-js">
 (function () {
-  // Streamiso bridge. The player page embeds Neko in an iframe, and browsers do not pass mouse or
+  // StreamISO bridge. The player page embeds Neko in an iframe, and browsers do not pass mouse or
   // key events from a cross-origin iframe to its parent. This script reports them, so the parent can
   // show its control bar and react to remote-control media keys.
   if (window.parent === window) return;

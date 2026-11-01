@@ -1,6 +1,6 @@
 {
-  "name": "Streamiso",
-  "short_name": "Streamiso",
+  "name": "StreamISO",
+  "short_name": "StreamISO",
   "description": "Your DVD ISO collection as a streaming library",
   "start_url": "/",
   "display": "standalone",
