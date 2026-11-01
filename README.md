@@ -328,7 +328,7 @@ Tip: edit from a desktop or phone. Typing with a TV remote is painful; on the TV
 - **Library**: arrow keys move focus, OK / Enter opens the disc.
 - **Player**: key presses go to VLC. Arrows navigate the DVD menu, Enter selects. Move the mouse (or touch the screen) to show the control bar; it hides itself after a few seconds of inactivity while playing.
 - **Loading screen**: while VLC starts and the stream connects, StreamISO shows its own spinner instead of Neko's connecting screen. If the stream has not started after 25 seconds the cover is lifted, so connection errors stay visible.
-- **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **DVD menu**, audio track, subtitles, fullscreen. Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
+- **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **DVD menu**, audio track, subtitles, fullscreen. Where the page cannot go fullscreen (the Android app, iPhones), that last button hides the bar instead, and touching the video brings it back. Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
 - **Remote / keyboard media keys**: play/pause, rewind, fast-forward, next/previous and stop work while the video has focus. Stop and the remote's Back key return to the library.
 - **Back arrow** (top left) stops the disc and returns to the library; the browser's Back button does the same.
 - With the page itself focused (not the video): Space or K play/pause, arrows seek and change volume, M mute, F fullscreen.

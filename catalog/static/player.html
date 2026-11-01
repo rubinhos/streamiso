@@ -141,6 +141,7 @@
       border: 1px solid var(--accent); }
     body.unlock #av-hint { display: block; }
     body.audio #dvdmenu, body.audio #audio, body.audio #subs { display: none; }
+    body.audio.nofs #full { display: none; }   /* the bar of an audio CD never hides, so nothing to hide it with */
 
     @media (max-height: 520px) and (min-width: 701px) {
       .av-main { top: 64px; bottom: 100px; padding: 0 24px; }
@@ -261,7 +262,8 @@
         volHigh: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>',
         mute: '<svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 8v2.2l2.4 2.4c.1-.2.1-.4.1-.6zM19 12c0 .9-.2 1.8-.5 2.6l1.5 1.5A9 9 0 0 0 21 12a9 9 0 0 0-7-8.8v2.1c2.9.9 5 3.5 5 6.7zM4.3 3L3 4.3 7.7 9H3v6h4l5 5v-6.7l4.3 4.3c-.7.5-1.4.9-2.3 1.2v2.1a9 9 0 0 0 3.7-1.8l2 2L21 19.7l-9-9zM12 4L9.9 6.1 12 8.2z"/></svg>',
         fs: '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7zm-2-4h2V7h3V5H5zm12 7h-3v2h5v-5h-2zM14 5v2h3v3h2V5z"/></svg>',
-        fsExit: '<svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5zm3-8H5v2h5V5H8zm6 11h2v-3h3v-2h-5zm2-11V5h-2v5h5V8z"/></svg>'
+        fsExit: '<svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5zm3-8H5v2h5V5H8zm6 11h2v-3h3v-2h-5zm2-11V5h-2v5h5V8z"/></svg>',
+        hide: '<svg viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5c0 .65-.13 1.26-.36 1.83l2.92 2.92A11.8 11.8 0 0 0 23 12c-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.74 2.74A11.8 11.8 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l3.35 3.34L21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55A2.8 2.8 0 0 0 9 12a3 3 0 0 0 3 3c.22 0 .44-.03.65-.08l1.55 1.55A5 5 0 0 1 7 12c0-.79.2-1.53.53-2.2zm4.31-.78 3.15 3.15.02-.16a3 3 0 0 0-3-3l-.17.01z"/></svg>'
       };
 
       function $(id) { return document.getElementById(id); }
@@ -331,15 +333,29 @@
         if (st && st.state === "paused") return;
         ui.classList.add("hidden");
       }
+      // The viewer asked for it, so this one also applies to a paused disc. A touch on the video brings it back.
+      function hideUiNow() {
+        closePop();
+        clearTimeout(S.hideTimer);
+        ui.classList.add("hidden");
+      }
 
       document.addEventListener("mousemove", showUi);
       document.addEventListener("touchstart", showUi, { passive: true });
       document.addEventListener("keydown", showUi);
       ["top", "bottom"].forEach(function (cls) {
         var el = document.querySelector("." + cls);
-        el.addEventListener("mouseenter", function () { S.pointerOnUi = true; showUi(); });
-        el.addEventListener("mouseleave", function () { S.pointerOnUi = false; showUi(); });
+        // A real mouse only: a tap also fires mouseenter, but the mouseleave never comes, because the next
+        // tap lands in the video's iframe. That would keep the bar on the screen for good.
+        el.addEventListener("pointerenter", function (e) {
+          if (e.pointerType === "mouse") { S.pointerOnUi = true; showUi(); }
+        });
+        el.addEventListener("pointerleave", function (e) {
+          if (e.pointerType === "mouse") { S.pointerOnUi = false; showUi(); }
+        });
       });
+      // A tap on the video reaches the iframe, not this page. All this page sees is that it lost the focus.
+      window.addEventListener("blur", function () { if (S.popOpen) closePop(); });
 
       // ------------------------------------------------------------------ commands
       function cmd(action, value) {
@@ -401,6 +417,11 @@
         var st = S.status || {};
         var playing = st.state === "playing";
         if (playing && S.needStart) { S.needStart = false; S.started = true; $("start").classList.remove("show"); }
+        // Discs open paused, when the bar has no reason to hide: start counting once they play.
+        if (st.state !== S.lastState) {
+          S.lastState = st.state;
+          if (playing && !ui.classList.contains("hidden")) showUi();
+        }
         $("toggle").innerHTML = playing ? ICON.pause : ICON.play;
         $("toggle").setAttribute("aria-label", playing ? "Pause" : "Play");
 
@@ -653,20 +674,38 @@
 
       // fullscreen (whole page, so the bar stays on top of the video)
       var fsTarget = document.documentElement;
-      var fsSupported = !!(fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen);
+      // Where the page cannot go fullscreen (an Android WebView, iPhones), the button hides the bar instead.
+      var fsEnabled = document.fullscreenEnabled !== undefined ? document.fullscreenEnabled : document.webkitFullscreenEnabled;
+      var fsSupported = !!(fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen) && fsEnabled !== false;
       function inFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+      function fullscreenRefused() {
+        fsSupported = false;
+        renderFs();
+        hideUiNow();
+      }
       function toggleFullscreen() {
         if (!fsSupported) return;
         try {
           if (inFullscreen()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
-          else { (fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen).call(fsTarget); }
+          else {
+            var request = (fsTarget.requestFullscreen || fsTarget.webkitRequestFullscreen).call(fsTarget);
+            if (request && request.catch) request.catch(fullscreenRefused);
+          }
         } catch (e) { /* ignore */ }
       }
-      function renderFs() { $("full").innerHTML = inFullscreen() ? ICON.fsExit : ICON.fs; }
-      if (!fsSupported) $("full").style.display = "none";
+      function renderFs() {
+        var label = !fsSupported ? "Hide controls" : inFullscreen() ? "Exit fullscreen" : "Fullscreen";
+        $("full").innerHTML = !fsSupported ? ICON.hide : inFullscreen() ? ICON.fsExit : ICON.fs;
+        $("full").title = fsSupported ? label + " (F)" : label;
+        $("full").setAttribute("aria-label", label);
+        document.body.classList.toggle("nofs", !fsSupported);
+      }
       document.addEventListener("fullscreenchange", renderFs);
       document.addEventListener("webkitfullscreenchange", renderFs);
-      $("full").addEventListener("click", function () { toggleFullscreen(); refocusVideo(); });
+      $("full").addEventListener("click", function () {
+        if (fsSupported) toggleFullscreen(); else hideUiNow();
+        refocusVideo();
+      });
       renderFs();
       renderVolume();
       $("toggle").innerHTML = ICON.play;
