@@ -71,7 +71,8 @@ The server does the work that an old DVD player would do, and any screen with a 
 - Poster grid with search, sorting and filters (genre, type, watched / listened), separate **DVDs** and **Music CDs** sections
 - Automatic covers, synopses, years and genres: **TMDB** for DVDs (free API key), **MusicBrainz + Cover Art Archive** for CDs (no key)
 - Smart matching for long file names (falls back to shorter names, down to the series name), plus a **Search again** button in the editor for manual searches
-- Metadata you control: title, year, genres, synopsis, **series / season / disc number**, watched flag, custom cover
+- Season discs get the poster of their own season (`Show S02 D1.iso`, or a season set in the editor)
+- Metadata you control: title, year, genres, synopsis, **season / disc number**, watched flag, custom cover
 - Covers are always shown whole (centered over a blurred copy of themselves); audio CD covers are square
 - Edits are tied to a fingerprint of each image, so renaming or moving files loses nothing
 - Navigable with arrow keys (TV remote)
@@ -160,7 +161,7 @@ headless Chromium with Playwright for UI checks, and small mock servers standing
 
 | Path | Content |
 |---|---|
-| `data/library.json` | Your edits (title, year, genres, series, watched, ...), keyed by disc fingerprint |
+| `data/library.json` | Your edits (title, year, genres, season, watched, ...), keyed by disc fingerprint |
 | `data/resume.json` | Saved playback positions, keyed by disc fingerprint |
 | `data/meta/<id>.json` | Cached TMDB / MusicBrainz results (a `miss` flag records "nothing found") |
 | `data/covers/<id>.jpg` | Covers downloaded from TMDB or the Cover Art Archive |
@@ -280,12 +281,12 @@ Looked up in this order:
 1. A cover uploaded in the edit dialog (stored in `data/covers_custom`)
 2. An image next to the ISO with the same name (`Matrix.iso` + `Matrix.jpg`; `.png` and `.webp` work too)
 3. `cover`, `folder`, `poster` or `front` (`.jpg` / `.png` / `.webp`) in the ISO's folder, **only if the folder contains a single ISO**
-4. TMDB, if `TMDB_API_KEY` is set. The file name is used for the search; `Title (1999).iso` improves matches
+4. TMDB, if `TMDB_API_KEY` is set. The file name is used for the search; `Title (1999).iso` improves matches. A disc of a TV season (a **Season** set in the editor, or `S02` / `Season 2` / `T2` in the file name) gets that season's poster instead of the series poster
 5. A generated cover with the title
 
 Covers are always shown whole. If a cover is not 2:3 (a CD-sized or landscape image, say), it is centered on a blurred, desaturated copy of itself.
 
-If a disc gets no cover or the wrong one, open the editor (✎), type the name of the series, film or album in **Search online as** and click **Search again**. Long file names such as `Show Name Special Episode Title` are also retried automatically with shorter names (down to the series name), and a result must contain every word of a shortened name to be accepted.
+If a disc gets no cover or the wrong one, open the editor (✎), type the name of the series, film or album in **Search online as** and click **Search again**. Add the year in parentheses to pick between titles with the same name, e.g. `Will & Grace (2017)` for the revival instead of the 1998 series (for a series, the year it first aired). A season works there too: `Will & Grace (2017) S01` gets the poster of the revival's first season. Long file names such as `Show Name Special Episode Title` are also retried automatically with shorter names (down to the series name), and a result must contain every word of a shortened name to be accepted.
 
 Audio CD covers are shown square. The Cover Art Archive often has art only for a specific release of an album, so when the album itself has none, the releases inside it are tried too.
 
@@ -311,11 +312,13 @@ A "one folder per DVD" layout works well:
 Hover a disc (or focus it) to see two buttons: **✓** toggles watched (listened, for audio CDs), **✎** opens the editor.
 Keyboard: **E** edits, **W** toggles watched.
 
-Editable fields: title, year, genres, synopsis, series, season, disc number, watched, cover.
+Editable fields: title, year, genres, synopsis, season, disc number, watched, cover.
 Your edits override TMDB; an empty field falls back to the automatic value. **Clear edits** resets a disc.
 
-For a TV series spread over several discs, set the same **Series** name on each disc and fill in **Season** and
-**Disc**, then sort by "Series & season".
+For a TV series spread over several discs, give each disc the series name as its **Title** and fill in **Season** and
+**Disc** (or name the files `Show S02 D1.iso`, which needs no editing), then sort by "Series & season". Discs matched to
+the same TV series on TMDB form one season even if their titles differ, and a revival with the same name as the
+original (`Will & Grace`, 2017: set **Year** 2017) stays apart from it.
 
 Edits are stored in `data/library.json` and `data/covers_custom/`. **Back up the `data/` folder.** They are tied to a
 fingerprint of the ISO (volume label, creation date, size), not its path, so renaming or moving a file keeps them.

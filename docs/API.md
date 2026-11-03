@@ -32,7 +32,6 @@ from a `file://` URL sends the origin `null`. Only paths under `/api/` get the C
 {
   "discs": [ { "...": "see below" } ],
   "genres": ["Animation", "Comedy"],
-  "series": ["Some Series"],
   "media_dir": "/media/dvds and /media/cds",
   "tmdb": true,
   "playing": "3dca5f54c298"
@@ -51,7 +50,8 @@ A disc:
 | `artist`, `track_count`, `duration` | Audio CDs only (`duration` in seconds) |
 | `watched` | Watched (DVD) or listened (CD) flag |
 | `resume` | `null`, or where it was left: `{ "time": seconds, "pct": 0-100 or null }`. For CDs it also has `track` (1-based) and `track_time` (seconds into that track) |
-| `series`, `season`, `disc` | Grouping fields |
+| `season`, `disc` | Grouping fields: discs with the same series name (the title, minus any `S02 D1`) and season form one season |
+| `tmdb_series` | TMDB id of the TV series the disc was matched to, or `null`. Discs of a season are grouped by it when set, so same-named series (a revival) stay apart |
 | `rating` | TMDB rating when known |
 | `label`, `size`, `rel`, `added` | Volume label, bytes, path relative to the media folder, mtime |
 | `cover_v` | Cache-busting value for the cover URL |
@@ -68,7 +68,7 @@ CORS, so `<img>` works from any client.
 
 | Call | Body | Effect |
 |---|---|---|
-| `PUT /api/disc/<id>/meta` | `{title, year, genres[], synopsis, series, season, disc, watched}` | Replaces all edits. Empty fields fall back to the automatic value. `400` on invalid values |
+| `PUT /api/disc/<id>/meta` | `{title, year, genres[], synopsis, season, disc, watched}` | Replaces all edits. Empty fields fall back to the automatic value. `400` on invalid values |
 | `POST /api/disc/<id>/watched` | `{"watched": true}` | Sets or clears the watched/listened flag |
 | `POST /api/disc/<id>/lookup` | `{"query": "optional search text"}` | Searches TMDB (DVD, needs `TMDB_API_KEY`) or MusicBrainz (CD) again. Returns `{found, cover, disc}` |
 | `POST /api/disc/<id>/cover` | multipart form, file field `cover` (JPG, PNG, WebP, up to 8 MB) | Sets a custom cover |

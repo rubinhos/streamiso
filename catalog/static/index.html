@@ -54,6 +54,20 @@
     </div>
   </div>
 
+  <div id="season" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="se-heading">
+    <div class="panel season-panel">
+      <div class="season-head">
+        <div>
+          <h2 id="se-heading"></h2>
+          <p id="se-info" class="muted small"></p>
+        </div>
+        <div class="spacer"></div>
+        <button type="button" id="se-close" title="Close" aria-label="Close">&#x2715;</button>
+      </div>
+      <div id="se-cards" class="cards" role="list"></div>
+    </div>
+  </div>
+
   <div id="editor" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ed-heading">
     <form id="ed-form" class="panel" autocomplete="off">
       <h2 id="ed-heading">Edit disc</h2>
@@ -75,9 +89,6 @@
           <div class="row">
             <label>Year
               <input id="ed-year" type="number" min="1888" max="2100">
-            </label>
-            <label class="grow">Series
-              <input id="ed-series" type="text" maxlength="120" list="series-list">
             </label>
             <label>Season
               <input id="ed-season" type="number" min="0" max="999">
@@ -112,7 +123,6 @@
         <button type="submit" id="ed-save" class="primary">Save</button>
       </div>
     </form>
-    <datalist id="series-list"></datalist>
   </div>
 
   <script src="/static/app.js"></script>

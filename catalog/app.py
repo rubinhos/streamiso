@@ -3,7 +3,7 @@
 
 Scans a folder for DVD .iso images, reads each volume label, builds the library
 with covers (custom cover > image next to the ISO > TMDB > generated placeholder)
-and stores the user's edits (title, year, genres, synopsis, series/season/disc,
+and stores the user's edits (title, year, genres, synopsis, season/disc,
 watched) in DATA_DIR/library.json.
 
 Edits are tied to a fingerprint of the ISO (not to its path), so renaming or
@@ -115,6 +115,40 @@ def clean_title(raw: str) -> tuple[str, str | None]:
 
 def is_generic(title: str) -> bool:
     return re.sub(r"[^a-z]", "", title.lower()) in GENERIC_TITLES or not title
+
+
+# Season number written in a title, e.g. "Friends S01 D02", "Lost - Season 2 Disc 3", "Dexter T1 Disco 4".
+# Keep in step with SEASON_RE in static/app.js, which groups the discs of a season in the catalog.
+SEASON_RE = re.compile(
+    r"(?:^|[\s\-–:,(])(?:season|temporada|saison|staffel|s|t)\s*0*(\d{1,3})"
+    r"(?=$|[\s\-–:,)]|d(?:is[ck]o?)?\s*\d|e\d)",
+    re.IGNORECASE,
+)
+
+
+def parse_season(title: str) -> tuple[str, int] | None:
+    """(series name, season) from a title that names a season, else None.
+
+    A name must come first, so a film like "T2 Trainspotting" is not taken for season 2.
+    """
+    m = SEASON_RE.search(title or "")
+    name = re.sub(r"[\s\-–:,(]+$", "", title[:m.start()]).strip() if m else ""
+    return (name, int(m.group(1))) if name else None
+
+
+def disc_season(disc: dict, rec: dict) -> tuple[str, int | None]:
+    """The series name and season of a DVD, like seasonOf() in static/app.js.
+
+    rec holds the user's edits. The series name is the title, minus any "S02 D1" in it.
+    Returns (title, None) when no season is known.
+    """
+    title = rec.get("title") or disc["title"]
+    from_title = parse_season(title)
+    parsed = from_title or parse_season(re.sub(r"[_.]+", " ", Path(disc["rel"]).stem)) \
+        or parse_season(re.sub(r"[_.]+", " ", disc.get("label", "")))
+    name = (from_title[0] if from_title else "") or title
+    season = rec["season"] if rec.get("season") is not None else (parsed[1] if parsed else None)
+    return name, season
 
 
 def find_user_cover(iso: Path, isos_in_dir: int) -> Path | None:
@@ -311,14 +345,21 @@ def title_variants(title: str) -> list[tuple[str, bool]]:
     return out[:7]
 
 
-def tmdb_lookup(title: str, year: str | None) -> dict | None:
+def tmdb_lookup(title: str, year: str | None, prefer_tv: bool = False,
+                tv_year: str | None = None) -> dict | None:
+    """year filters films; tv_year only puts first a series that started that year (a revival such
+    as "Will & Grace (2017)" next to the 1998 original), since a season disc's year is often the
+    season's, not the series'."""
     for query, strict in title_variants(title):
         want = set(_words(query))
-        for kind in ("movie", "tv"):
+        for kind in ("tv", "movie") if prefer_tv else ("movie", "tv"):
             params = {"query": query, "language": TMDB_LANGUAGE, "include_adult": "false"}
             if year and kind == "movie":
                 params["year"] = year
-            for r in tmdb_get(f"/search/{kind}", **params).get("results", []):
+            results = tmdb_get(f"/search/{kind}", **params).get("results", [])
+            if tv_year and kind == "tv":
+                results.sort(key=lambda r: (r.get("first_air_date") or "")[:4] != str(tv_year))
+            for r in results:
                 if not r.get("poster_path"):
                     continue
                 names = " ".join(filter(None, [r.get("title"), r.get("name"), r.get("original_title"),
@@ -328,6 +369,8 @@ def tmdb_lookup(title: str, year: str | None) -> dict | None:
                 gmap = tmdb_genre_map(kind)
                 return {
                     "poster_path": r["poster_path"],
+                    "tmdb_kind": kind,
+                    "tmdb_id": r["id"],
                     "overview": r.get("overview", ""),
                     "tmdb_title": r.get("title") or r.get("name") or "",
                     "tmdb_year": (r.get("release_date") or r.get("first_air_date") or "")[:4],
@@ -344,16 +387,42 @@ def _store_meta(disc_id: str, meta: dict) -> None:
 
 
 def lookup_dvd(disc: dict, query: str | None = None) -> bool:
-    """TMDB lookup for a DVD: stores synopsis/genres/year and the poster. Raises on network errors."""
-    title = query or load_library().get(disc["fp"], {}).get("title") or disc["title"]
-    hit = tmdb_lookup(title, None if query else disc["year"])
+    """TMDB lookup for a DVD: stores synopsis/genres/year and the poster. Raises on network errors.
+
+    A disc of a TV season (season edited or written in its title) gets that season's poster.
+    A manual query may name the year and season too: "Will & Grace (2017) S01 D2".
+    """
+    rec = load_library().get(disc["fp"], {})
+    series, season = disc_season(disc, rec)
+    disc_season_no = season  # what enrich_all compares against; a query's season is not the disc's
+    year = disc["year"]
+    if query:  # "Will & Grace (2017)": the year picks the film or series of that year
+        m = re.search(r"\(((?:19|20)\d{2})\)", query)
+        year = m.group(1) if m else None
+        query = re.sub(r"\s+", " ", re.sub(r"\((?:19|20)\d{2}\)", " ", query)).strip() or query
+        if parsed := parse_season(query):
+            query, season = parsed
+            series = query
+    title = query or (series if season is not None else rec.get("title") or disc["title"])
+    tv_year = year if query else year or rec.get("year")
+    hit = tmdb_lookup(title, year, prefer_tv=season is not None, tv_year=tv_year)
     if hit is None:
-        _store_meta(disc["id"], {"miss": True, "checked": int(time.time())})
+        _store_meta(disc["id"], {"miss": True, "season_checked": disc_season_no, "checked": int(time.time())})
         return False
+    poster = hit["poster_path"]
+    if season is not None and hit["tmdb_kind"] == "tv":
+        try:
+            season_poster = tmdb_get(f"/tv/{hit['tmdb_id']}/season/{season}",
+                                     language=TMDB_LANGUAGE).get("poster_path")
+            if season_poster:
+                poster = season_poster
+                hit["season_poster"] = True
+        except urllib.error.HTTPError as exc:  # no such season on TMDB: keep the series poster
+            app.logger.warning("No season %s on TMDB for %r: HTTP %s", season, series, exc.code)
     COVER_DIR.mkdir(parents=True, exist_ok=True)
     if not disc["user_cover"]:
         img = urllib.request.Request(
-            f"{TMDB_IMAGE_URL}{hit['poster_path']}",
+            f"{TMDB_IMAGE_URL}{poster}",
             headers={"User-Agent": f"streamiso/{VERSION}"},
         )
         try:
@@ -362,6 +431,7 @@ def lookup_dvd(disc: dict, query: str | None = None) -> bool:
         except urllib.error.HTTPError as exc:  # the details are still worth keeping without the poster
             app.logger.warning("Poster download failed for %r: HTTP %s", disc["title"], exc.code)
     meta = {k: v for k, v in hit.items() if k != "poster_path"}
+    meta["season_checked"] = disc_season_no  # redone when the season changes (see enrich_all)
     meta["checked"] = int(time.time())
     _store_meta(disc["id"], meta)
     return True
@@ -393,6 +463,7 @@ def enrich_all() -> None:
     if not _enrich_lock.acquire(blocking=False):
         return
     try:
+        lib = load_library()
         for disc in list(_catalog.values()):
             meta_path = META_DIR / f"{disc['id']}.json"
             is_cd = disc.get("kind") == "cd"
@@ -400,8 +471,11 @@ def enrich_all() -> None:
                 continue  # DVDs need a TMDB key
             if meta_path.exists():
                 old = read_meta(disc["id"])
-                if is_cd or old.get("miss") or "genres" in old:
-                    continue  # already looked up (older DVD lookups without genres are redone)
+                # Already looked up; DVD lookups are redone when they predate genres or when the
+                # disc's season changed (edited or renamed), so the cover is that season's poster.
+                if is_cd or ((old.get("miss") or "genres" in old) and
+                             old.get("season_checked") == disc_season(disc, lib.get(disc["fp"], {}))[1]):
+                    continue
             try:
                 (lookup_cd if is_cd else lookup_dvd)(disc)
             except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
@@ -497,9 +571,6 @@ def clean_meta(payload: dict) -> dict:
     synopsis = str(payload.get("synopsis") or "").strip()
     if synopsis:
         out["synopsis"] = synopsis[:4000]
-    series = str(payload.get("series") or "").strip()
-    if series:
-        out["series"] = series[:120]
     season = _int_or_none(payload.get("season"), 0, 999, "Season")
     if season is not None:
         out["season"] = season
@@ -570,7 +641,8 @@ def disc_view(d: dict, lib: dict) -> dict:
         "synopsis": ov.get("synopsis") or auto["synopsis"],
         "watched": bool(ov.get("watched")),
         "resume": resume_view(d),
-        "series": ov.get("series", ""),
+        # the TV series found on TMDB: groups the discs of a season apart from a same-named series
+        "tmdb_series": meta.get("tmdb_id") if meta.get("tmdb_kind") == "tv" else None,
         "season": ov.get("season"),
         "disc": ov.get("disc"),
         "rating": meta.get("rating"),
@@ -738,7 +810,6 @@ def api_discs():
         {
             "discs": discs,
             "genres": sorted({g for d in discs for g in d["genres"]}, key=str.casefold),
-            "series": sorted({d["series"] for d in discs if d["series"]}, key=str.casefold),
             "media_dir": str(DVD_DIR) if DVD_DIR == CD_DIR else f"{DVD_DIR} and {CD_DIR}",
             "tmdb": bool(TMDB_API_KEY),
             "playing": next((d["id"] for d in catalog.values() if d["state"] == playing_path), None),
@@ -784,6 +855,8 @@ def api_meta_put(disc_id: str):
         else:
             lib.pop(disc["fp"], None)
         save_library(lib)
+    if TMDB_API_KEY and disc.get("kind") != "cd":
+        threading.Thread(target=enrich_all, daemon=True).start()  # a new season fetches its poster
     return jsonify(disc_view(disc, lib))
 
 
@@ -1079,6 +1152,24 @@ def api_player_cmd():
 @app.post("/api/rescan")
 def api_rescan():
     return jsonify({"count": len(get_catalog(force=True))})
+
+
+def drop_series_edits() -> None:
+    """Remove the old "series" edit field: the title now names the series of a season disc."""
+    with _lib_lock:
+        lib = load_library()
+        changed = [rec.pop("series") for rec in lib.values() if isinstance(rec, dict) and "series" in rec]
+        if changed:
+            for fp in [fp for fp, rec in lib.items() if not rec]:
+                del lib[fp]  # an edit that held only a series name
+            save_library(lib)
+            app.logger.info("Removed the series field from %d edited discs", len(changed))
+
+
+try:
+    drop_series_edits()
+except OSError as exc:  # read-only or missing data folder: the field is ignored anyway
+    app.logger.warning("Could not clean up library.json: %s", exc)
 
 
 if __name__ == "__main__":

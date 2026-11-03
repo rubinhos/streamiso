@@ -187,6 +187,24 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   pointer-events: none;
 }
 
+/* a season with several discs: the cover looks like a small stack of cases */
+.item.stack { padding-top: 10px; }
+.item.stack .card .cover {
+  box-shadow: 5px -5px 0 -1px #30333b, 10px -10px 0 -2px #3c3f48;
+}
+.item.stack .card:focus .cover, .item.stack .card:hover .cover {
+  box-shadow: 5px -5px 0 -1px #30333b, 10px -10px 0 -2px #3c3f48, 0 12px 32px rgba(0, 0, 0, .55);
+}
+.item.stack .ribbon, .item.stack .tools { top: 18px; }
+
+/* ---------- season (list of discs) ---------- */
+#season { z-index: 15; }  /* under the "opening" overlay and the editor */
+.season-panel { max-width: 1100px; }
+.season-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+.season-head p { margin: 4px 0 0; }
+#se-close { flex: none; width: 44px; height: 44px; padding: 0; background: var(--panel-2); }
+.season-panel .cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+
 .tools {
   position: absolute;
   top: 8px;
@@ -295,7 +313,6 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 
 .row { display: flex; flex-wrap: wrap; gap: 12px; }
 .row > label { flex: 0 0 110px; margin-top: 0 !important; }
-.row > label.grow { flex: 1 1 180px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -336,6 +353,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   header #filter { flex: 1; min-width: 0; width: auto; }
   #rescan { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px 14px; }
+  .season-panel .cards { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
   .group + .group { margin-top: 32px; }
   .ed-grid { grid-template-columns: 1fr; }
   .ed-cover { max-width: 200px; }

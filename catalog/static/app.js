@@ -20,6 +20,10 @@
   var edError = $("ed-error");
   var edSave = $("ed-save");
 
+  var seasonEl = $("season");
+  var seCards = $("se-cards");
+  var openSeasonKey = null;  // group shown in the season window, if any
+
   var DEFAULT_GENRES = [
     "Action", "Adventure", "Animation", "Comedy", "Concert", "Crime", "Documentary", "Drama",
     "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance",
@@ -28,7 +32,6 @@
 
   var allDiscs = [];
   var knownGenres = [];
-  var knownSeries = [];
   var mediaDir = "/media";
   var prefs = { sort: "title", genre: "", status: "", kind: "" };
   var firstLoad = true;
@@ -104,10 +107,13 @@
     },
     "added": function (a, b) { return (b.added - a.added) || cmpText(a.title, b.title); },
     "series": function (a, b) {
-      if (!a.series !== !b.series) return a.series ? -1 : 1;  // discs with a series first
-      return cmpText(a.series, b.series) ||
-        (num(a.season, 0) - num(b.season, 0)) ||
-        (num(a.disc, 0) - num(b.disc, 0)) ||
+      var sa = seasonOf(a), sb = seasonOf(b);
+      if (!sa !== !sb) return sa ? -1 : 1;  // discs of a season first
+      if (!sa) return cmpText(a.title, b.title);
+      return cmpText(sa.name, sb.name) ||
+        (num(a.tmdb_series, 0) - num(b.tmdb_series, 0)) ||  // same-named series (a revival) apart
+        (sa.season - sb.season) ||
+        (num(sa.disc, 0) - num(sb.disc, 0)) ||
         cmpText(a.title, b.title);
     }
   };
@@ -120,7 +126,7 @@
       if (prefs.status === "watched" && !d.watched) return false;
       if (prefs.status === "unwatched" && d.watched) return false;
       if (q) {
-        var hay = (d.title + " " + d.series + " " + (d.artist || "") + " " + d.genres.join(" ")).toLowerCase();
+        var hay = (d.title + " " + (d.artist || "") + " " + d.genres.join(" ")).toLowerCase();
         if (hay.indexOf(q) === -1) return false;
       }
       return true;
@@ -139,12 +145,71 @@
       return parts.join(" \u00b7 ");
     }
     if (d.year) parts.push(d.year);
-    if (d.series) parts.push(d.series);
     var st = [];
     if (d.season !== null && d.season !== undefined) st.push("S" + d.season);
     if (d.disc !== null && d.disc !== undefined) st.push("D" + d.disc);
     if (st.length) parts.push(st.join(" "));
     return parts.join(" · ");
+  }
+
+  // ------------------------------------------------------------ seasons (several discs grouped)
+  // Season / disc numbers written in the title, e.g. "Friends S01 D02", "Lost - Season 2 Disc 3",
+  // "Dexter T1 Disco 4". The series name is what comes before the season.
+  var SEASON_RE = /(?:^|[\s\-–:,(])(?:season|temporada|saison|staffel|s|t)\s*0*(\d{1,3})(?=$|[\s\-–:,)]|d(?:is[ck]o?)?\s*\d|e\d)/i;
+  var DISC_RE = /(?:^|[\s\-–:,(\d])(?:dis[ck]o?|dvd|d)\s*0*(\d{1,3})(?=$|[^\d])/i;
+
+  function parseTitle(title) {
+    var t = String(title || "");
+    var m = SEASON_RE.exec(t);
+    if (!m) return null;
+    var name = t.slice(0, m.index).replace(/[\s\-–:,(]+$/, "").trim();
+    var rest = t.slice(m.index + m[0].length);
+    var dm = DISC_RE.exec(rest);
+    return { name: name, season: Number(m[1]), disc: dm ? Number(dm[1]) : null };
+  }
+
+  // The season a DVD belongs to, from its edited season, its title, or (when the title says
+  // nothing) its file name / volume label; null if none. The series name is the title, minus any
+  // "S02 D1" in it. Discs matched to a TV series on TMDB are grouped by that series, so the
+  // seasons of a revival ("Will & Grace", 2017) stay apart from the original's.
+  function seasonOf(d) {
+    if (d.kind === "cd") return null;
+    var fromTitle = parseTitle(d.title);
+    var p = fromTitle || parseTitle(String(d.rel || "").replace(/^.*\//, "").replace(/\.[^.]*$/, "").replace(/[_.]+/g, " ")) ||
+      parseTitle(String(d.label || "").replace(/[_.]+/g, " ")) || {};
+    var name = (fromTitle && fromTitle.name) || d.title;
+    var season = d.season !== null && d.season !== undefined ? d.season : p.season;
+    if (!name || season === null || season === undefined) return null;
+    var disc = d.disc !== null && d.disc !== undefined ? d.disc : p.disc;
+    var series = d.tmdb_series ? "tmdb:" + d.tmdb_series : name.toLowerCase();
+    return { key: series + "|" + season, name: name, season: season, disc: disc };
+  }
+
+  function byDiscNumber(a, b) {
+    var sa = seasonOf(a), sb = seasonOf(b);
+    return (num(sa && sa.disc, 9999) - num(sb && sb.disc, 9999)) || cmpText(a.title, b.title);
+  }
+
+  // Replace the discs of a season that appear more than once by a single group, kept at the
+  // place of its first disc in the current sort order.
+  function collapse(items) {
+    var groups = {};
+    items.forEach(function (d) {
+      var s = seasonOf(d);
+      if (!s) return;
+      (groups[s.key] = groups[s.key] || { key: s.key, name: s.name, season: s.season, discs: [] }).discs.push(d);
+    });
+    var out = [], placed = {};
+    items.forEach(function (d) {
+      var s = seasonOf(d);
+      var g = s && groups[s.key];
+      if (!g || g.discs.length < 2) { out.push(d); return; }
+      if (placed[g.key]) return;
+      placed[g.key] = true;
+      g.discs.sort(byDiscNumber);
+      out.push(g);
+    });
+    return out;
   }
 
   // "watched" for DVDs, "listened" for audio CDs
@@ -257,8 +322,132 @@
     return item;
   }
 
+  function buildGroup(g) {
+    var first = g.discs[0];
+    var watched = g.discs.every(function (d) { return d.watched; });
+    var resumed = null;
+    g.discs.forEach(function (d) { if (d.resume && !resumed) resumed = d; });
+
+    var item = document.createElement("div");
+    item.className = "item stack" + (watched ? " watched" : "");
+    item.dataset.group = g.key;
+    item.setAttribute("role", "listitem");
+
+    var card = document.createElement("button");
+    card.type = "button";
+    card.className = "card";
+    card.title = g.name + " \u00b7 Season " + g.season + " \u00b7 " + g.discs.length + " discs" +
+      (first.synopsis ? "\n\n" + first.synopsis.slice(0, 300) : "");
+
+    var coverUrl = "/api/cover/" + first.id + "?v=" + first.cover_v;
+    var img = document.createElement("span");
+    img.className = "cover";
+    ["bg", "fg"].forEach(function (cls) {
+      var el = document.createElement("img");
+      el.className = cls;
+      el.alt = "";
+      el.loading = "lazy";
+      el.src = coverUrl;
+      img.appendChild(el);
+    });
+    var tag = document.createElement("span");
+    tag.className = "kindtag";
+    tag.textContent = "\uD83D\uDCC0 " + g.discs.length + " discs";
+    img.appendChild(tag);
+
+    var title = document.createElement("span");
+    title.className = "title";
+    title.textContent = g.name;
+
+    var sub = document.createElement("span");
+    sub.className = "sub";
+    var seen = g.discs.filter(function (d) { return d.watched; }).length;
+    sub.textContent = (first.year ? first.year + " \u00b7 " : "") + "Season " + g.season +
+      (seen && !watched ? " \u00b7 " + seen + "/" + g.discs.length + " watched" : "");
+
+    card.appendChild(img);
+    card.appendChild(title);
+    card.appendChild(sub);
+    if (first.genres.length) {
+      var gn = document.createElement("span");
+      gn.className = "genres";
+      gn.textContent = first.genres.slice(0, 3).join(" \u00b7 ");
+      card.appendChild(gn);
+    }
+    if (resumed) {
+      var rs = document.createElement("span");
+      rs.className = "resume";
+      var s = seasonOf(resumed);
+      rs.textContent = "\u25b6 Continue" + (s && s.disc !== null && s.disc !== undefined ? " disc " + s.disc : "");
+      card.appendChild(rs);
+    }
+    card.addEventListener("click", function () { openSeason(g.key); });
+
+    var ribbon = document.createElement("span");
+    ribbon.className = "ribbon";
+    ribbon.textContent = "\u2713 Watched";
+
+    item.appendChild(card);
+    item.appendChild(ribbon);
+    return item;
+  }
+
+  function seasonOpen() { return !seasonEl.hidden; }
+
+  // Discs of the open season that pass the current filters.
+  function seasonDiscs() {
+    return visibleList().filter(function (d) {
+      var s = seasonOf(d);
+      return s && s.key === openSeasonKey;
+    }).sort(byDiscNumber);
+  }
+
+  function renderSeason() {
+    if (!openSeasonKey) return;
+    var discs = seasonDiscs();
+    if (!discs.length) { closeSeason(); return; }
+    var focusId = null;
+    var active = document.activeElement;
+    var it = active && active.closest ? active.closest(".item") : null;
+    if (it && seCards.contains(it)) focusId = it.dataset.id;
+
+    var s = seasonOf(discs[0]);
+    $("se-heading").textContent = s.name + " \u2013 Season " + s.season;
+    var seen = discs.filter(function (d) { return d.watched; }).length;
+    $("se-info").textContent = discs.length + (discs.length === 1 ? " disc" : " discs") +
+      (seen ? " \u00b7 " + seen + " watched" : "");
+    seCards.textContent = "";
+    discs.forEach(function (d) { seCards.appendChild(buildItem(d)); });
+    if (focusId) focusCard(focusId);
+  }
+
+  function openSeason(key) {
+    openSeasonKey = key;
+    seasonEl.hidden = false;
+    seasonEl.scrollTop = 0;
+    renderSeason();
+    var c = seCards.querySelector(".card");
+    if (c) c.focus();
+  }
+
+  function closeSeason() {
+    var key = openSeasonKey;
+    openSeasonKey = null;
+    seasonEl.hidden = true;
+    seCards.textContent = "";
+    if (key) {
+      var c = grid.querySelector('.item[data-group="' + key.replace(/["\\]/g, "\\$&") + '"] .card');
+      if (c) { try { c.focus({ preventScroll: true }); } catch (e) { c.focus(); } }
+    }
+  }
+
+  $("se-close").addEventListener("click", closeSeason);
+  seasonEl.addEventListener("mousedown", function (e) { if (e.target === seasonEl) closeSeason(); });
+
+  // The card of a disc, in the season window when it is open, otherwise in the grid.
   function focusCard(id) {
-    var c = grid.querySelector('.item[data-id="' + id + '"] .card');
+    var root = seasonOpen() ? seCards : grid;
+    var c = root.querySelector('.item[data-id="' + id + '"] .card');
     if (!c) return false;
     try { c.focus({ preventScroll: true }); } catch (e) { c.focus(); }
     return true;
@@ -280,7 +469,7 @@
     var active = document.activeElement;
     if (active && active.closest) {
       var it = active.closest(".item");
-      if (it && grid.contains(it)) focusId = it.dataset.id;
+      if (it && grid.contains(it)) focusId = it.dataset.id || null;
     }
 
     var list = visibleList();
@@ -306,7 +495,7 @@
       var cards = document.createElement("div");
       cards.className = "cards";
       cards.setAttribute("role", "list");
-      items.forEach(function (d) { cards.appendChild(buildItem(d)); });
+      collapse(items).forEach(function (d) { cards.appendChild(d.discs ? buildGroup(d) : buildItem(d)); });
       section.appendChild(cards);
       grid.appendChild(section);
     });
@@ -333,7 +522,8 @@
       emptyEl.hidden = true;
     }
 
-    if (focusId) focusCard(focusId);
+    if (focusId && !seasonOpen()) focusCard(focusId);
+    renderSeason();
   }
 
   function refreshGenreOptions(genres) {
@@ -360,21 +550,13 @@
     return api("/api/discs").then(function (data) {
       allDiscs = data.discs;
       knownGenres = data.genres;
-      knownSeries = data.series;
       mediaDir = data.media_dir;
       refreshGenreOptions(knownGenres);
-      var dl = $("series-list");
-      dl.textContent = "";
-      knownSeries.forEach(function (s) {
-        var o = document.createElement("option");
-        o.value = s;
-        dl.appendChild(o);
-      });
       render();
       if (firstLoad) {
         firstLoad = false;
         var first = grid.querySelector(".card");
-        if (first && !editorOpen()) first.focus();
+        if (first && !editorOpen() && !seasonOpen()) first.focus();
       }
     }).then(null, function () {
       emptyEl.hidden = false;
@@ -498,7 +680,6 @@
     $("ed-title").placeholder = a.title || "";
     $("ed-year").value = c.year !== undefined && c.year !== null ? c.year : "";
     $("ed-year").placeholder = a.year || "";
-    $("ed-series").value = c.series || "";
     $("ed-season").value = c.season !== undefined && c.season !== null ? c.season : "";
     $("ed-disc").value = c.disc !== undefined && c.disc !== null ? c.disc : "";
     $("ed-genres").value = (c.genres || []).join(", ");
@@ -556,7 +737,6 @@
     var payload = {
       title: $("ed-title").value,
       year: numOrNull("ed-year"),
-      series: $("ed-series").value,
       season: numOrNull("ed-season"),
       disc: numOrNull("ed-disc"),
       genres: genreList(),
@@ -635,7 +815,8 @@
 
   // ------------------------------------------------------------ keyboard (TV remote)
   function move(key) {
-    var cards = Array.prototype.slice.call(grid.querySelectorAll(".card"));
+    var root = seasonOpen() ? seCards : grid;
+    var cards = Array.prototype.slice.call(root.querySelectorAll(".card"));
     if (!cards.length) return;
     var cur = document.activeElement;
     var item = cur && cur.closest ? cur.closest(".item") : null;
@@ -672,6 +853,7 @@
       if (e.key === "Escape") { e.preventDefault(); closeEditor(); }
       return;
     }
+    if (seasonOpen() && e.key === "Escape") { e.preventDefault(); closeSeason(); return; }
     var t = e.target;
     var tag = t && t.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
@@ -699,7 +881,10 @@
 
     if (e.key && e.key.indexOf("Arrow") === 0) {
       e.preventDefault();
-      if (e.key === "ArrowUp" && itemEl) {
+      if (seasonOpen()) {
+        // top row of the season window: go up to its close button
+        if (!move(e.key) && e.key === "ArrowUp" && itemEl) $("se-close").focus();
+      } else if (e.key === "ArrowUp" && itemEl) {
         if (!move(e.key)) filterEl.focus();  // top of the grid: go up to the filter box
       } else {
         move(e.key);
