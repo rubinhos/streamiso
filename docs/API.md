@@ -185,7 +185,7 @@ with `postMessage`. Every message has `streamiso: true`:
 |---|---|
 | `{type: "video-ready"}` | The first video data arrived. Hide your loading cover |
 | `{type: "audio-state", ok: boolean}` | `ok` is `true` when the stream is audible. When it stays `false` the browser blocked autoplay with sound and needs a tap |
-| `{type: "activity"}` | The pointer or touch moved over the video (to show your controls) |
+| `{type: "activity"}` | The pointer or touch moved over the video (StreamISO uses it to keep an open control bar from collapsing) |
 | `{type: "key", action: "..."}` | A remote-control key: `toggle`, `forward`, `rewind`, `next`, `prev`, `stop`, `back`, or `nav-up`, `nav-down`, `nav-left`, `nav-right`, `nav-activate` (the last five only when the viewer has no control of the desktop) |
 
 | To the stream page | Meaning |

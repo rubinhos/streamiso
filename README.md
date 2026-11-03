@@ -329,9 +329,9 @@ Tip: edit from a desktop or phone. Typing with a TV remote is painful; on the TV
 ## Controls
 
 - **Library**: arrow keys move focus, OK / Enter opens the disc.
-- **Player**: key presses go to VLC. Arrows navigate the DVD menu, Enter selects. Move the mouse (or touch the screen) to show the control bar; it hides itself after a few seconds of inactivity while playing.
+- **Player**: key presses go to VLC. Arrows navigate the DVD menu, Enter selects. A DVD plays with the control bar collapsed, so it never covers the disc's own menu: the small handle at the bottom of the screen opens it (playback shortcuts such as Space or ±10 s open it too), and collapses it again. While playing, the bar also collapses by itself after a few seconds without activity.
 - **Loading screen**: while VLC starts and the stream connects, StreamISO shows its own spinner instead of Neko's connecting screen. If the stream has not started after 25 seconds the cover is lifted, so connection errors stay visible.
-- **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **DVD menu**, audio track, subtitles, fullscreen. Where the page cannot go fullscreen (the Android app, iPhones), that last button hides the bar instead, and touching the video brings it back. Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
+- **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **DVD menu**, audio track, subtitles, fullscreen (left out where the page cannot go fullscreen: the Android app, iPhones). Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
 - **Remote / keyboard media keys**: play/pause, rewind, fast-forward, next/previous and stop work while the video has focus. Stop and the remote's Back key return to the library.
 - **Back arrow** (top left) stops the disc and returns to the library; the browser's Back button does the same.
 - With the page itself focused (not the video): Space or K play/pause, arrows seek and change volume, M mute, F fullscreen.
@@ -433,9 +433,10 @@ Check that VLC is running (`docker exec streamiso-neko pgrep -a vlc`) and that t
 
 **The DVD menu button does nothing.** VLC did not accept the `key-disc-menu` action; open an issue with your VLC version.
 
-**The control bar does not appear when the mouse moves over the video.** The page of the Neko container is patched at start-up
-with a small script (`neko/patch-neko.sh`, `neko/neko-inject.html`) that reports mouse and key activity. Check
-`docker exec streamiso-neko cat /var/log/neko/streamiso-patch.log`. Moving the mouse over the top or bottom edge of the page always works.
+**Media keys do nothing, or the open control bar collapses while the mouse moves over the video.** The page of the Neko
+container is patched at start-up with a small script (`neko/patch-neko.sh`, `neko/neko-inject.html`) that reports mouse and
+key activity. Check `docker exec streamiso-neko cat /var/log/neko/streamiso-patch.log`. The handle at the bottom of the
+page always opens the bar.
 
 **Neko's own buttons (resolution, clipboard, picture-in-picture) show up.** StreamISO opens Neko with `cast=1`, which hides them.
 If you use `NEKO_PUBLIC_URL` with a custom front page, make sure the parameter is not stripped.
