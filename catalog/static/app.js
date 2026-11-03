@@ -905,6 +905,13 @@
       function () { rescanBtn.disabled = false; });
   });
 
+  // The Android app adds this bridge to its WebView, so the catalog can offer to switch servers.
+  var androidApp = window.StreamIsoAndroid;
+  if (androidApp && typeof androidApp.changeServer === "function") {
+    $("server").hidden = false;
+    $("server").addEventListener("click", function () { androidApp.changeServer(); });
+  }
+
   // When returning via browser history (bfcache) the page can reappear without reloading.
   window.addEventListener("pageshow", function () { openingEl.hidden = true; stopIfWeStartedIt(); });
 

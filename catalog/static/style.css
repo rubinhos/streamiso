@@ -339,8 +339,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .actions .danger { color: var(--danger); }
 .error { margin: 14px 0 0; color: var(--danger); }
 
-#rescan { display: inline-flex; align-items: center; gap: 8px; }
-#rescan svg { flex: none; }
+#rescan, #server { display: inline-flex; align-items: center; gap: 8px; }
+#rescan svg, #server svg { flex: none; }
+#server[hidden] { display: none; }
 
 @media (max-width: 700px) {
   header, main { padding-left: 16px; padding-right: 16px; }
@@ -349,9 +350,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   header { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
   header .brand { flex: 0 0 100%; }
   header .logo { height: 40px; }
-  header #count, header .spacer, header select, #rescan .lbl { display: none; }
+  header #count, header .spacer, header select, #rescan .lbl, #server .lbl { display: none; }
   header #filter { flex: 1; min-width: 0; width: auto; }
-  #rescan { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
+  #rescan, #server { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px 14px; }
   .season-panel .cards { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
   .group + .group { margin-top: 32px; }
