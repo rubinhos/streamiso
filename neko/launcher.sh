@@ -12,6 +12,36 @@ MEDIA_PREFIX="${MEDIA_PREFIX:-/media/}"
 RC_ADDR="0.0.0.0"
 RC_PORT="4212"
 
+# DVD_DEINTERLACE (from .env): VLC's deinterlace mode, or "off". "Automatic" leaves progressive discs alone.
+DVD_DEINTERLACE="${DVD_DEINTERLACE:-yadif}"
+case "$DVD_DEINTERLACE" in
+  off|0|none) DEINTERLACE=(--deinterlace=0) ;;
+  discard|blend|mean|bob|linear|x|yadif|yadif2x|phosphor|ivtc)
+    DEINTERLACE=(--deinterlace=-1 "--deinterlace-mode=$DVD_DEINTERLACE") ;;
+  *) echo "[launcher] unknown DVD_DEINTERLACE '$DVD_DEINTERLACE', using yadif"
+     DEINTERLACE=(--deinterlace=-1 --deinterlace-mode=yadif) ;;
+esac
+
+# Language preferences (from .env), as two-letter codes (pt, es, fr...), like the settings of a DVD player.
+# Many discs have one set of menus and pick their text from the player's menu language, which VLC sets to
+# English when none is given. Empty leaves a setting as VLC and the disc choose:
+#   DVD_MENU_LANGUAGE      the disc's menus
+#   DVD_AUDIO_LANGUAGE     the audio track the disc starts with
+#   DVD_SUBTITLE_LANGUAGE  turns subtitles on in that language
+LANG_ARGS=()
+add_lang() {  # $1 variable name, $2 VLC option
+  local value="${!1:-}"
+  [ -n "$value" ] || return 0
+  if [[ "$value" =~ ^[A-Za-z]{2,3}$ ]]; then
+    LANG_ARGS+=("--$2=$value")
+  else
+    echo "[launcher] ignoring $1 '$value': use a two-letter code such as pt"
+  fi
+}
+add_lang DVD_MENU_LANGUAGE menu-language
+add_lang DVD_AUDIO_LANGUAGE audio-language
+add_lang DVD_SUBTITLE_LANGUAGE sub-language
+
 CUR=""
 VLC_PID=""
 
@@ -78,7 +108,7 @@ while true; do
                 --no-video-title-show --mouse-hide-timeout=500 --no-qt-privacy-ask --no-qt-error-dialogs
                 --extraintf=rc "--rc-host=$RC_ADDR:$RC_PORT")
         case "$MODE" in
-          dvd)  vlc "${COMMON[@]}" --start-paused "dvdnav://$LINK" & ;;
+          dvd)  vlc "${COMMON[@]}" "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
           cd)   vlc "${COMMON[@]}" --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
                     "--rawaud-fourcc=$FOURCC" "$LINK" & ;;
           file) vlc "${COMMON[@]}" "$LINK" & ;;

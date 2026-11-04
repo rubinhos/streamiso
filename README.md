@@ -192,8 +192,8 @@ an ISO path (open as a DVD), `cd-s16l:<bin>` or `cd-s16b:<bin>` (raw audio CD im
 | `POST /api/player/cmd` | Control VLC: `toggle`, `seek`, `volume`, `audio`, `subtitle`, `menu`, `nav`, `chapter_*`, `track*`, `start`, `resume_apply` |
 | `POST /api/rescan`, `GET /healthz` | Rescan the folders (also automatic every 30 s), health check |
 
-**Other settings.** The stream is 1280x720 at 30 fps (`NEKO_DESKTOP_SCREEN` in `docker-compose.yml`) and the Neko container
-gets 1 GB of shared memory (`shm_size`), which a browser-like desktop needs. Neko's `NEKO_SESSION_IMPLICIT_HOSTING` is on, so
+**Other settings.** Stream quality (`STREAM_RESOLUTION`, `STREAM_FPS`, `STREAM_BITRATE`) and DVD deinterlacing
+(`DVD_DEINTERLACE`) are set in `.env`: see [Stream quality](#stream-quality). The Neko container gets 1 GB of shared memory (`shm_size`), which a browser-like desktop needs. Neko's `NEKO_SESSION_IMPLICIT_HOSTING` is on, so
 whoever interacts with the video gets control. Uploaded covers are limited to 8 MB. Advanced overrides for development and
 tests: `TMDB_API_URL`, `TMDB_IMAGE_URL`, `MUSICBRAINZ_URL`, `COVERART_URL`, `VLC_RC_HOST`, `VLC_RC_PORT`.
 
@@ -269,8 +269,33 @@ Test in a desktop browser first, then on the TV.
 | `TMDB_LANGUAGE` | `en-US` | Language of TMDB results (e.g. `pt-BR`, `es-ES`) |
 | `MUSICBRAINZ_CONTACT` | empty | E-mail or project URL sent in the User-Agent, as MusicBrainz asks |
 
-The stream is 1280x720 at 30 fps by default (`NEKO_DESKTOP_SCREEN` in `docker-compose.yml`). Raise it to
-`1920x1080@30` for a Full HD TV; it costs more server CPU.
+### Stream quality
+
+VLC plays the disc full screen on the Neko container's virtual screen, and Neko encodes that screen live as VP8 for
+WebRTC. So the picture you see depends on these `.env` settings, not on VLC:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `STREAM_RESOLUTION` | `1280x720` | Size of the screen VLC draws on. A DVD is only 720x480 (NTSC) or 720x576 (PAL), so `1920x1080` adds no detail: it scales the picture up on the server instead of on the TV, and costs more CPU |
+| `STREAM_FPS` | `30` | Frames per second. `30` suits NTSC discs, `25` suits PAL discs |
+| `STREAM_BITRATE` | `4000` | Video bit rate in kbit/s. Raise it if fast scenes show blocks or blur. Neko's own default is about 2000 |
+| `DVD_DEINTERLACE` | `yadif` | How VLC removes the combing of interlaced DVDs: `yadif`, `yadif2x` (smoother, twice the frames, more CPU), `blend`, `bob`, or `off`. Discs flagged as progressive are left alone |
+
+Apply changes with `docker compose up -d`, which recreates the player container (an open disc is closed).
+
+### DVD language
+
+Like the settings of a DVD player, these `.env` settings take two-letter codes such as `pt`, `es` or `fr`. Empty leaves
+the choice to the disc.
+
+| Variable | What it does |
+|---|---|
+| `DVD_MENU_LANGUAGE` | Language of the disc's menus. Many discs have a single set of menus and pick their text from this setting, so without it they open in English even when they have your language |
+| `DVD_AUDIO_LANGUAGE` | Audio track the disc starts with |
+| `DVD_SUBTITLE_LANGUAGE` | Turns subtitles on in that language |
+
+A disc's own **Languages** menu still works, and the audio and subtitle buttons of the player bar can change them during
+playback.
 
 ## Library
 
