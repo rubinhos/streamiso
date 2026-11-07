@@ -315,6 +315,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   background: rgba(8, 8, 10, .82);
 }
 .modal[hidden] { display: none; }
+html.modal-open, html.modal-open body { overflow: hidden; }  /* only the open window scrolls */
 
 .panel {
   width: 100%;
@@ -364,10 +365,13 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .row { display: flex; flex-wrap: wrap; gap: 12px; }
 .row > label { flex: 0 0 110px; margin-top: 0 !important; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+/* compact, so the editor fits on the screen */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.ed-fields > .chips { margin-top: 8px; }
 .chip {
-  padding: 5px 12px;
-  font-size: 13px;
+  padding: 2px 9px;
+  font-size: 12px;
+  line-height: 1.5;
   color: var(--muted);
   background: var(--panel-2);
   border: 2px solid transparent;

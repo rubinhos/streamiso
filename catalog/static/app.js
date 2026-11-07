@@ -459,6 +459,7 @@
   function openSeason(key) {
     openSeasonKey = key;
     seasonEl.hidden = false;
+    lockScroll();
     seasonEl.scrollTop = 0;
     renderSeason();
     var c = seCards.querySelector(".card");
@@ -469,6 +470,7 @@
     var key = openSeasonKey;
     openSeasonKey = null;
     seasonEl.hidden = true;
+    lockScroll();
     seCards.textContent = "";
     if (key) {
       var c = grid.querySelector('.item[data-group="' + key.replace(/["\\]/g, "\\$&") + '"] .card');
@@ -640,6 +642,11 @@
   // ------------------------------------------------------------ editor
   function editorOpen() { return !editorEl.hidden; }
 
+  // While a window is open, only it scrolls: the page behind would add a second scroll bar.
+  function lockScroll() {
+    document.documentElement.classList.toggle("modal-open", editorOpen() || seasonOpen() || pickerOpen());
+  }
+
   function genreList() {
     return $("ed-genres").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
   }
@@ -738,12 +745,14 @@
     $("ed-lookup-note").hidden = true;
     edSave.disabled = false;
     editorEl.hidden = false;
+    lockScroll();
     $("ed-title").focus();
   }
 
   function closeEditor() {
     var id = editing && editing.id;
     editorEl.hidden = true;
+    lockScroll();
     editing = null;
     pendingFile = null;
     removeCover = false;
@@ -1010,6 +1019,7 @@
     pkQuery.value = $("ed-query").value.trim();
     pkQuery.placeholder = "";
     pickerEl.hidden = false;
+    lockScroll();
     pickerEl.scrollTop = 0;
     searchPosters();
   }
@@ -1017,6 +1027,7 @@
   function closePicker() {
     pkSearchSeq++;
     pickerEl.hidden = true;
+    lockScroll();
     pkBody.textContent = "";
     $("ed-posters").focus();
   }
