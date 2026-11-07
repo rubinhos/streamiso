@@ -91,7 +91,7 @@ The server does the work that an old DVD player would do, and any screen with a 
 - Track titles and artists from the cue sheet
 
 **Resume**
-- Remembers where you stopped, for DVDs and CDs (track and time). Discs in progress are listed first, under **Continue watching**, with a progress bar on the poster: click to continue, **↺** to start over
+- Remembers where you stopped, for DVDs and CDs (track and time). Discs in progress are listed first, under **Continue watching**, with a progress bar on the poster: click to continue, **↺** to start over, **✕** to remove it from the list (it then starts over)
 
 **Setup**
 - Docker Compose, no GPU required, no build step for the front end

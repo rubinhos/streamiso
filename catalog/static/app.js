@@ -249,7 +249,8 @@
   function seenWord(d) { return d.kind === "cd" ? "listened" : "watched"; }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-  function buildItem(d) {
+  // inProgress: the card is in the "Continue watching" section, which gives it a button to leave it.
+  function buildItem(d, inProgress) {
     var item = document.createElement("div");
     item.className = "item" + (d.watched ? " watched" : "") + (d.kind === "cd" ? " cd" : "");
     item.dataset.id = d.id;
@@ -344,6 +345,15 @@
       again.title = "Start over";
       again.addEventListener("click", function (e) { e.stopPropagation(); play(d, false); });
       tools.appendChild(again);
+    }
+    if (inProgress) {
+      var forget = document.createElement("button");
+      forget.type = "button";
+      forget.className = "tool";
+      forget.textContent = "\u2715";
+      forget.title = "Remove from Continue " + (d.kind === "cd" ? "listening" : "watching") + " (starts over next time)";
+      forget.addEventListener("click", function (e) { e.stopPropagation(); forgetResume(d); });
+      tools.appendChild(forget);
     }
     tools.appendChild(mark);
     tools.appendChild(edit);
@@ -555,7 +565,7 @@
       var cards = document.createElement("div");
       cards.className = "cards";
       cards.setAttribute("role", "list");
-      items.forEach(function (d) { cards.appendChild(d.discs ? buildGroup(d) : buildItem(d)); });
+      items.forEach(function (d) { cards.appendChild(d.discs ? buildGroup(d) : buildItem(d, extraClass === "progress")); });
       section.appendChild(cards);
       grid.appendChild(section);
     }
@@ -646,6 +656,14 @@
       emptyEl.hidden = false;
       emptyEl.textContent = "Could not load the library. Is the service running?";
     });
+  }
+
+  // ------------------------------------------------------------ continue watching
+  // Forgets where the disc was left: it leaves "Continue watching" and next time starts over.
+  function forgetResume(d) {
+    d.resume = null;
+    render();
+    api("/api/disc/" + d.id + "/resume/clear", { method: "POST" }).then(load, load);
   }
 
   // ------------------------------------------------------------ watched

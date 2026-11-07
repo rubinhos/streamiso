@@ -1039,6 +1039,14 @@ def api_lookup(disc_id: str):
     return jsonify({"found": found, "cover": cover, "disc": disc_view(disc, load_library())})
 
 
+@app.post("/api/disc/<disc_id>/resume/clear")
+def api_resume_clear(disc_id: str):
+    """Forget where the disc was left: it leaves "Continue watching" and opens from the start."""
+    disc = get_disc(disc_id)
+    _set_resume(disc["fp"], None)
+    return jsonify({"ok": True})
+
+
 POSTER_PATH_RE = re.compile(r"^/[A-Za-z0-9_-]{1,100}\.(?:jpe?g|png|webp)$")
 
 
