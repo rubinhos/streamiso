@@ -69,7 +69,7 @@ The server does the work that an old DVD player would do, and any screen with a 
 
 **Library**
 - Poster grid with search, sorting and filters (genre, type), separate **DVDs** and **Music CDs** sections
-- Discs already watched or listened to are hidden; the eye button shows them again (a season or film on several discs stays until all its discs are)
+- Discs already watched or listened to are hidden while the **Hide watched** switch (eye button) is on, as it is at first; turn it off to show them (a season or film on several discs stays until all its discs are)
 - Automatic covers, synopses, years and genres: **TMDB** for DVDs (free API key), **MusicBrainz + Cover Art Archive** for CDs (no key)
 - Smart matching for long file names (falls back to shorter names, down to the series name), plus a **Search again** button in the editor for manual searches
 - Season discs get the poster of their own season (`Show S02 D1.iso`, or a season set in the editor)

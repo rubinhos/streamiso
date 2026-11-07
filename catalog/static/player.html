@@ -152,7 +152,7 @@
     #av-hint span { display: inline-block; padding: 10px 18px; border-radius: 8px; background: rgba(0, 0, 0, .85);
       border: 1px solid var(--accent); }
     body.unlock #av-hint { display: block; }
-    body.audio #dvdmenu, body.audio #audio, body.audio #subs { display: none; }
+    body.audio #dvdmenu, body.audio #dvdreturn, body.audio #audio, body.audio #subs { display: none; }
     body.nofs #full { display: none; }   /* no fullscreen here (Android WebView, iPhones); the handle hides the bar */
 
     @media (max-height: 520px) and (min-width: 701px) {
@@ -245,7 +245,11 @@
 
         <div class="spacer"></div>
 
-        <button id="dvdmenu" class="label hide-sm" type="button" title="Go to the DVD menu">
+        <button id="dvdreturn" class="label hide-sm" type="button"
+                title="Back to the menu of what is playing (the disc decides which: often the one it was started from)">
+          <svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>Return
+        </button>
+        <button id="dvdmenu" class="label hide-sm" type="button" title="Go to the DVD's main menu">
           <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>DVD menu
         </button>
         <button id="audio" type="button" title="Audio" aria-label="Audio track">
@@ -712,6 +716,7 @@
       $("mute").addEventListener("click", toggleMute);
       $("volume").addEventListener("input", function () { setVolume(parseInt(this.value, 10), true); });
       $("dvdmenu").addEventListener("click", function () { cmd("menu"); refocusVideo(); });
+      $("dvdreturn").addEventListener("click", function () { cmd("return"); refocusVideo(); });
       $("audio").addEventListener("click", function () { togglePop($("pop-audio")); });
       $("subs").addEventListener("click", function () { togglePop($("pop-subs")); });
       document.addEventListener("click", function (e) {

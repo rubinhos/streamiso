@@ -147,4 +147,11 @@ class VlcRc:
         self.run([f"strack {int(track_id)}"])
 
     def disc_menu(self) -> None:
+        """The disc's main menu (VLC's menu key calls the Title menu, else the Root menu)."""
         self.run(["key key-disc-menu"])
+
+    def part_menu(self) -> None:
+        """The Root menu of the part of the disc that is playing, as the Menu key of a DVD remote. Each part
+        (title set) of a disc has its own; the disc decides where it leads, often the menu the part was
+        started from, such as the extras. Title 0 is how VLC's DVD module calls it."""
+        self.run(["title 0"])

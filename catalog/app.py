@@ -1349,7 +1349,7 @@ def start_playback(disc: dict | None) -> None:
 
 @app.post("/api/player/cmd")
 def api_player_cmd():
-    """Control VLC: {action: toggle|seek|chapter_next|chapter_prev|volume|audio|subtitle|menu|track*, value?}."""
+    """Control VLC: {action: toggle|seek|chapter_next|chapter_prev|volume|audio|subtitle|menu|return|track*, value?}."""
     if not read_state():
         return jsonify({"error": "Nothing is playing"}), 409
     payload = request.get_json(silent=True)
@@ -1383,6 +1383,8 @@ def api_player_cmd():
             VLC_RC.set_subtitle(_int_field(payload, "value", -1, 10**6))
         elif action == "menu":
             VLC_RC.disc_menu()
+        elif action == "return":
+            VLC_RC.part_menu()
         else:
             return jsonify({"error": "Unknown action"}), 400
     except ValueError as exc:

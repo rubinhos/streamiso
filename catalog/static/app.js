@@ -34,8 +34,9 @@
   var knownGenres = [];
   var mediaDir = "/media";
   var tmdbOn = false;  // DVD posters and details can be looked up on TMDB
-  // showSeen: also list the discs already watched / listened to (hidden by default)
-  var prefs = { sort: "title", genre: "", kind: "", showSeen: false };
+  // hideSeen: leave out the discs already watched / listened to (the "Hide watched" switch, on by default).
+  // It replaced "showSeen", which is ignored, so everyone starts with the switch on.
+  var prefs = { sort: "title", genre: "", kind: "", hideSeen: true };
   var firstLoad = true;
 
   var editing = null;
@@ -79,7 +80,7 @@
       var p = JSON.parse(localStorage.getItem("streamisoPrefs") || "{}");
       if (p.sort) prefs.sort = p.sort;
       if (typeof p.genre === "string") prefs.genre = p.genre;
-      if (typeof p.showSeen === "boolean") prefs.showSeen = p.showSeen;
+      if (typeof p.hideSeen === "boolean") prefs.hideSeen = p.hideSeen;
       if (typeof p.kind === "string") prefs.kind = p.kind;
     } catch (e) { /* no localStorage: use the defaults */ }
   }
@@ -511,16 +512,17 @@
   function statusLabels() {
     var hasCd = allDiscs.some(function (d) { return d.kind === "cd"; });
     var word = prefs.kind === "cd" ? "listened" : (prefs.kind === "dvd" || !hasCd) ? "watched" : "played";
-    var text = (prefs.showSeen ? "Hide " : "Show ") + word;
+    // a switch: always "Hide watched", pressed (on) while they are hidden
+    var text = "Hide " + word;
     seenBtn.querySelector(".lbl").textContent = text;
-    seenBtn.title = text;
-    seenBtn.setAttribute("aria-label", "Show " + word);
-    seenBtn.setAttribute("aria-pressed", prefs.showSeen ? "true" : "false");
+    seenBtn.title = text + (prefs.hideSeen ? " (on: click to show them)" : " (off: click to hide them)");
+    seenBtn.setAttribute("aria-label", text);
+    seenBtn.setAttribute("aria-pressed", prefs.hideSeen ? "true" : "false");
   }
 
   // Hidden by the eye button: a disc already watched / listened to, or a group whose discs all are.
   function seenHidden(item) {
-    if (prefs.showSeen) return false;
+    if (!prefs.hideSeen) return false;
     return item.discs ? item.discs.every(function (d) { return d.watched; }) : !!item.watched;
   }
 
@@ -1231,7 +1233,7 @@
   sortEl.addEventListener("change", function () { prefs.sort = sortEl.value; savePrefs(); render(); });
   genreEl.addEventListener("change", function () { prefs.genre = genreEl.value; savePrefs(); render(); });
   kindEl.addEventListener("change", function () { prefs.kind = kindEl.value; savePrefs(); statusLabels(); render(); });
-  seenBtn.addEventListener("click", function () { prefs.showSeen = !prefs.showSeen; savePrefs(); render(); });
+  seenBtn.addEventListener("click", function () { prefs.hideSeen = !prefs.hideSeen; savePrefs(); render(); });
   filterEl.addEventListener("input", render);
 
   rescanBtn.addEventListener("click", function () {

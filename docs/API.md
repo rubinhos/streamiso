@@ -166,6 +166,7 @@ Body: `{"action": "...", "value": ...}`. Returns `{"ok": true}`, or `{"error": "
 | `audio` | id from `status.audio` | DVD audio track |
 | `subtitle` | id from `status.subtitles`, `-1` to hide | DVD subtitles |
 | `menu` | none | DVD main menu |
+| `return` | none | DVD: the menu of what is playing (the Root menu of its title set), as the Menu key of a DVD remote. The disc decides which menu: often the one the film or extra was started from |
 | `nav` | `up`, `down`, `left`, `right`, `activate` | Move in a DVD menu (VLC remote interface). Useful when the video has no keyboard focus |
 
 ### `POST /api/stop`

@@ -395,7 +395,7 @@ html.modal-open, html.modal-open body { overflow: hidden; }  /* only the open wi
 
 #rescan, #server, #seen { display: inline-flex; align-items: center; gap: 8px; }
 #rescan svg, #server svg, #seen svg { flex: none; }
-/* the eye is open while watched discs are shown, crossed out while they are hidden */
+/* "Hide watched" is a switch: on (highlighted, eye crossed out) while watched discs are hidden */
 #seen .eye-off, #seen[aria-pressed="true"] .eye { display: none; }
 #seen[aria-pressed="true"] .eye-off { display: inline; }
 #seen[aria-pressed="true"] { color: #111; background: var(--accent); }
