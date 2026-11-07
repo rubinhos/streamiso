@@ -429,6 +429,14 @@
 
   function seasonOpen() { return !seasonEl.hidden; }
 
+  // A click on the dark area around a window closes it, but not one on its scroll bar, which
+  // belongs to that same area.
+  function onBackdrop(el, close) {
+    el.addEventListener("mousedown", function (e) {
+      if (e.target === el && e.clientX < el.clientWidth && e.clientY < el.clientHeight) close();
+    });
+  }
+
   // Discs of the open season that pass the current filters.
   function seasonDiscs() {
     return visibleList().filter(function (d) {
@@ -479,7 +487,7 @@
   }
 
   $("se-close").addEventListener("click", closeSeason);
-  seasonEl.addEventListener("mousedown", function (e) { if (e.target === seasonEl) closeSeason(); });
+  onBackdrop(seasonEl, closeSeason);
 
   // The card of a disc, in the season window when it is open, otherwise in the grid.
   function focusCard(id) {
@@ -803,7 +811,7 @@
   });
 
   $("ed-cancel").addEventListener("click", closeEditor);
-  editorEl.addEventListener("mousedown", function (e) { if (e.target === editorEl) closeEditor(); });
+  onBackdrop(editorEl, closeEditor);
   $("ed-genres").addEventListener("input", syncChips);
 
   $("ed-cover-file").addEventListener("change", function () {
@@ -1078,7 +1086,7 @@
   pkQuery.addEventListener("keydown", function (e) {
     if (e.key === "Enter") { e.preventDefault(); searchPosters(); }
   });
-  pickerEl.addEventListener("mousedown", function (e) { if (e.target === pickerEl) closePicker(); });
+  onBackdrop(pickerEl, closePicker);
 
   // ------------------------------------------------------------ keyboard (TV remote)
   function move(key) {
