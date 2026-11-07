@@ -9,7 +9,7 @@
   var filterEl = $("filter");
   var sortEl = $("sort");
   var genreEl = $("genre");
-  var statusEl = $("status");
+  var seenBtn = $("seen");
   var kindEl = $("kind");
   var rescanBtn = $("rescan");
   var openingEl = $("opening");
@@ -34,7 +34,8 @@
   var knownGenres = [];
   var mediaDir = "/media";
   var tmdbOn = false;  // DVD posters and details can be looked up on TMDB
-  var prefs = { sort: "title", genre: "", status: "", kind: "" };
+  // showSeen: also list the discs already watched / listened to (hidden by default)
+  var prefs = { sort: "title", genre: "", kind: "", showSeen: false };
   var firstLoad = true;
 
   var editing = null;
@@ -78,7 +79,7 @@
       var p = JSON.parse(localStorage.getItem("streamisoPrefs") || "{}");
       if (p.sort) prefs.sort = p.sort;
       if (typeof p.genre === "string") prefs.genre = p.genre;
-      if (typeof p.status === "string") prefs.status = p.status;
+      if (typeof p.showSeen === "boolean") prefs.showSeen = p.showSeen;
       if (typeof p.kind === "string") prefs.kind = p.kind;
     } catch (e) { /* no localStorage: use the defaults */ }
   }
@@ -131,8 +132,6 @@
     var list = allDiscs.filter(function (d) {
       if (prefs.genre && d.genres.indexOf(prefs.genre) === -1) return false;
       if (prefs.kind && d.kind !== prefs.kind) return false;
-      if (prefs.status === "watched" && !d.watched) return false;
-      if (prefs.status === "unwatched" && d.watched) return false;
       if (q) {
         var hay = (d.title + " " + (d.sort_title || "") + " " + (d.artist || "") + " " + d.genres.join(" ")).toLowerCase();
         if (hay.indexOf(q) === -1) return false;
@@ -498,14 +497,26 @@
     return true;
   }
 
-  // Wording of the status filter: "watched" for DVDs, "listened" for CDs, "played" for a mix.
+  // The eye button: "watched" for DVDs, "listened" for CDs, "played" for a mix.
   function statusLabels() {
     var hasCd = allDiscs.some(function (d) { return d.kind === "cd"; });
-    var pair = prefs.kind === "cd" ? ["Not listened", "Listened"]
-      : (prefs.kind === "dvd" || !hasCd) ? ["Unwatched", "Watched"] : ["Not played", "Played"];
-    statusEl.options[1].textContent = pair[0];
-    statusEl.options[2].textContent = pair[1];
-    statusEl.setAttribute("aria-label", pair[1] + " status");
+    var word = prefs.kind === "cd" ? "listened" : (prefs.kind === "dvd" || !hasCd) ? "watched" : "played";
+    var text = (prefs.showSeen ? "Hide " : "Show ") + word;
+    seenBtn.querySelector(".lbl").textContent = text;
+    seenBtn.title = text;
+    seenBtn.setAttribute("aria-label", "Show " + word);
+    seenBtn.setAttribute("aria-pressed", prefs.showSeen ? "true" : "false");
+  }
+
+  // Hidden by the eye button: a disc already watched / listened to, or a group whose discs all are.
+  function seenHidden(item) {
+    if (prefs.showSeen) return false;
+    return item.discs ? item.discs.every(function (d) { return d.watched; }) : !!item.watched;
+  }
+
+  // Number of discs behind the cards (a group stands for several).
+  function discCount(items) {
+    return items.reduce(function (n, it) { return n + (it.discs ? it.discs.length : 1); }, 0);
   }
 
   function render() {
@@ -519,38 +530,62 @@
 
     var list = visibleList();
     grid.textContent = "";
-    // One section per kind, so DVDs and CDs are not mixed. Headings only matter when both exist.
-    var kinds = {};
-    allDiscs.forEach(function (d) { kinds[d.kind] = true; });
-    var showHeadings = !!(kinds.dvd && kinds.cd);
-    [["dvd", "DVDs"], ["cd", "Music CDs"]].forEach(function (g) {
-      var items = list.filter(function (d) { return d.kind === g[0]; });
-      if (!items.length) return;
+
+    // Discs in progress come first, in a section of their own, even when already watched. One
+    // that belongs to a season (or a film on several discs) also stays in its group's card.
+    var progress = list.filter(function (d) { return d.resume; });
+    var grouped = {};
+    collapse(list).forEach(function (it) {
+      if (it.discs) it.discs.forEach(function (d) { grouped[d.id] = true; });
+    });
+    var rest = list.filter(function (d) { return !d.resume || grouped[d.id]; });
+
+    function addSection(title, items, extraClass) {
       var section = document.createElement("section");
-      section.className = "group";
-      if (showHeadings) {
+      section.className = "group" + (extraClass ? " " + extraClass : "");
+      if (title) {
         var h = document.createElement("h2");
-        h.textContent = g[1];
+        h.textContent = title;
         var n = document.createElement("span");
         n.className = "count";
-        n.textContent = String(items.length);
+        n.textContent = String(discCount(items));
         h.appendChild(n);
         section.appendChild(h);
       }
       var cards = document.createElement("div");
       cards.className = "cards";
       cards.setAttribute("role", "list");
-      collapse(items).forEach(function (d) { cards.appendChild(d.discs ? buildGroup(d) : buildItem(d)); });
+      items.forEach(function (d) { cards.appendChild(d.discs ? buildGroup(d) : buildItem(d)); });
       section.appendChild(cards);
       grid.appendChild(section);
+    }
+
+    if (progress.length) {
+      var onlyCd = progress.every(function (d) { return d.kind === "cd"; });
+      var anyCd = progress.some(function (d) { return d.kind === "cd"; });
+      addSection(onlyCd ? "Continue listening" : anyCd ? "Continue" : "Continue watching", progress, "progress");
+    }
+    // One section per kind, so DVDs and CDs are not mixed. Headings only matter when both exist,
+    // or under the "Continue" section.
+    var kinds = {};
+    allDiscs.forEach(function (d) { kinds[d.kind] = true; });
+    var showHeadings = !!(kinds.dvd && kinds.cd) || progress.length > 0;
+    var shown = progress.filter(function (d) { return !grouped[d.id]; }).length;  // the others count in their group
+    var hiddenSeen = 0;
+    [["dvd", "DVDs"], ["cd", "Music CDs"]].forEach(function (g) {
+      var items = collapse(rest.filter(function (d) { return d.kind === g[0]; }));
+      var visible = items.filter(function (it) { return !seenHidden(it); });
+      hiddenSeen += discCount(items) - discCount(visible);
+      shown += discCount(visible);
+      if (visible.length) addSection(showHeadings ? g[1] : "", visible);
     });
 
     if (!allDiscs.length) {
       countEl.textContent = "";
-    } else if (list.length === allDiscs.length) {
+    } else if (shown === allDiscs.length) {
       countEl.textContent = allDiscs.length + (allDiscs.length === 1 ? " disc" : " discs");
     } else {
-      countEl.textContent = list.length + " of " + allDiscs.length;
+      countEl.textContent = shown + " of " + allDiscs.length;
     }
 
     if (!allDiscs.length) {
@@ -563,6 +598,9 @@
     } else if (!list.length) {
       emptyEl.hidden = false;
       emptyEl.textContent = "Nothing matches these filters.";
+    } else if (!grid.childNodes.length && hiddenSeen) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = "Everything here has been played already. Click the eye button to show it.";
     } else {
       emptyEl.hidden = true;
     }
@@ -1175,7 +1213,7 @@
   sortEl.addEventListener("change", function () { prefs.sort = sortEl.value; savePrefs(); render(); });
   genreEl.addEventListener("change", function () { prefs.genre = genreEl.value; savePrefs(); render(); });
   kindEl.addEventListener("change", function () { prefs.kind = kindEl.value; savePrefs(); statusLabels(); render(); });
-  statusEl.addEventListener("change", function () { prefs.status = statusEl.value; savePrefs(); render(); });
+  seenBtn.addEventListener("click", function () { prefs.showSeen = !prefs.showSeen; savePrefs(); render(); });
   filterEl.addEventListener("input", render);
 
   rescanBtn.addEventListener("click", function () {
@@ -1196,7 +1234,6 @@
 
   loadPrefs();
   sortEl.value = prefs.sort;
-  statusEl.value = prefs.status;
   kindEl.value = prefs.kind;
   stopIfWeStartedIt();
   load();

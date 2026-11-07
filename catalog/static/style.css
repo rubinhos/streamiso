@@ -393,8 +393,13 @@ html.modal-open, html.modal-open body { overflow: hidden; }  /* only the open wi
 .actions .danger { color: var(--danger); }
 .error { margin: 14px 0 0; color: var(--danger); }
 
-#rescan, #server { display: inline-flex; align-items: center; gap: 8px; }
-#rescan svg, #server svg { flex: none; }
+#rescan, #server, #seen { display: inline-flex; align-items: center; gap: 8px; }
+#rescan svg, #server svg, #seen svg { flex: none; }
+/* the eye is open while watched discs are shown, crossed out while they are hidden */
+#seen .eye-off, #seen[aria-pressed="true"] .eye { display: none; }
+#seen[aria-pressed="true"] .eye-off { display: inline; }
+#seen[aria-pressed="true"] { color: #111; background: var(--accent); }
+.group.progress h2 { color: var(--accent); }
 #server[hidden] { display: none; }
 
 @media (max-width: 700px) {
@@ -404,9 +409,9 @@ html.modal-open, html.modal-open body { overflow: hidden; }  /* only the open wi
   header { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
   header .brand { flex: 0 0 100%; }
   header .logo { height: 40px; }
-  header #count, header .spacer, header select, #rescan .lbl, #server .lbl { display: none; }
+  header #count, header .spacer, header select, #rescan .lbl, #server .lbl, #seen .lbl { display: none; }
   header #filter { flex: 1; min-width: 0; width: auto; }
-  #rescan, #server { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
+  #rescan, #server, #seen { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px 14px; }
   .season-panel .cards { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
   .pk-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }

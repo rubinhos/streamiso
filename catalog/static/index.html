@@ -30,11 +30,12 @@
       <option value="dvd">DVDs</option>
       <option value="cd">Music CDs</option>
     </select>
-    <select id="status" aria-label="Watched status">
-      <option value="">All</option>
-      <option value="unwatched">Unwatched</option>
-      <option value="watched">Watched</option>
-    </select>
+    <!-- Shows or hides the discs already watched (DVDs) or listened to (CDs); hidden at first. -->
+    <button id="seen" type="button" aria-pressed="false">
+      <svg class="eye" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.3 8.6 1 12c1.3 3.4 5.5 7 11 7s9.7-3.6 11-7c-1.3-3.4-5.5-7-11-7zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>
+      <svg class="eye-off" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M2.3 3.7 3.7 2.3l18 18-1.4 1.4-3.4-3.4A12 12 0 0 1 12 19c-5.5 0-9.7-3.6-11-7a12.6 12.6 0 0 1 4.2-5.3L2.3 3.7zM12 5c5.5 0 9.7 3.6 11 7a12.4 12.4 0 0 1-3.3 4.6l-3.3-3.3A4.5 4.5 0 0 0 10.7 7.6L8.3 5.2C9.5 5.1 10.7 5 12 5zm-4.4 4.1A4.5 4.5 0 0 0 14.9 15.4l-1.5-1.5a2.5 2.5 0 0 1-3.3-3.3L7.6 9.1z"/></svg>
+      <span class="lbl"></span>
+    </button>
     <button id="rescan" type="button" title="Look for new ISO files" aria-label="Refresh">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
       <span class="lbl">Refresh</span>
