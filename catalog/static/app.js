@@ -512,11 +512,12 @@
   function statusLabels() {
     var hasCd = allDiscs.some(function (d) { return d.kind === "cd"; });
     var word = prefs.kind === "cd" ? "listened" : (prefs.kind === "dvd" || !hasCd) ? "watched" : "played";
-    // a switch: always "Hide watched", pressed (on) while they are hidden
-    var text = "Hide " + word;
+    // says what is on screen: "Hide watched" (highlighted) while they are hidden, "Show watched" while shown
+    var text = (prefs.hideSeen ? "Hide " : "Show ") + word;
     seenBtn.querySelector(".lbl").textContent = text;
-    seenBtn.title = text + (prefs.hideSeen ? " (on: click to show them)" : " (off: click to hide them)");
-    seenBtn.setAttribute("aria-label", text);
+    seenBtn.title = prefs.hideSeen ? "The " + word + " ones are hidden: click to show them"
+      : "The " + word + " ones are shown: click to hide them";
+    seenBtn.setAttribute("aria-label", "Hide " + word);
     seenBtn.setAttribute("aria-pressed", prefs.hideSeen ? "true" : "false");
   }
 
