@@ -676,6 +676,9 @@ def clean_meta(payload: dict) -> dict:
     title = str(payload.get("title") or "").strip()
     if title:
         out["title"] = title[:200]
+    sort_title = str(payload.get("sort_title") or "").strip()
+    if sort_title:  # sorts the disc under another name than the one shown
+        out["sort_title"] = sort_title[:200]
     year = _int_or_none(payload.get("year"), 1888, 2100, "Year")
     if year is not None:
         out["year"] = year
@@ -706,6 +709,8 @@ def clean_meta(payload: dict) -> dict:
         out["disc"] = disc
     if payload.get("watched"):
         out["watched"] = True
+    if payload.get("cover_fill"):  # the cover fills its space (cropped) instead of being shown whole
+        out["cover_fill"] = True
     return out
 
 
@@ -763,10 +768,12 @@ def disc_view(d: dict, lib: dict) -> dict:
         "track_count": len(d.get("tracks", [])),
         "duration": d.get("duration"),
         "title": ov.get("title") or auto["title"],
+        "sort_title": ov.get("sort_title") or ov.get("title") or auto["title"],
         "year": ov["year"] if ov.get("year") is not None else auto["year"],
         "genres": ov.get("genres") or auto["genres"],
         "synopsis": ov.get("synopsis") or auto["synopsis"],
         "watched": bool(ov.get("watched")),
+        "cover_fill": bool(ov.get("cover_fill")),
         "resume": resume_view(d),
         # the TV series found on TMDB: groups the discs of a season apart from a same-named series
         "tmdb_series": meta.get("tmdb_id") if meta.get("tmdb_kind") == "tv" else None,
@@ -932,7 +939,9 @@ def api_discs():
     lib = load_library()
     catalog = get_catalog()
     playing_path = read_state()
-    discs = [disc_view(d, lib) for d in catalog.values()]
+    # by sort title, the order of clients that do not sort themselves (the TV app)
+    discs = sorted((disc_view(d, lib) for d in catalog.values()),
+                   key=lambda v: (v["sort_title"].casefold(), v["title"].casefold()))
     return jsonify(
         {
             "discs": discs,

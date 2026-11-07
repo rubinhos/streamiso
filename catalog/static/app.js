@@ -98,21 +98,26 @@
   }
   function num(v, fallback) { return v === null || v === undefined ? fallback : v; }
 
+  // The sort title set in the editor, or else the title shown.
+  function byTitle(a, b) {
+    return cmpText(a.sort_title || a.title, b.sort_title || b.title) || cmpText(a.title, b.title);
+  }
+
   var sorters = {
-    "title": function (a, b) { return cmpText(a.title, b.title); },
+    "title": byTitle,
     "year-desc": function (a, b) {
-      return (num(b.year, -1) - num(a.year, -1)) || cmpText(a.title, b.title);
+      return (num(b.year, -1) - num(a.year, -1)) || byTitle(a, b);
     },
     "year-asc": function (a, b) {
-      return (num(a.year, 99999) - num(b.year, 99999)) || cmpText(a.title, b.title);
+      return (num(a.year, 99999) - num(b.year, 99999)) || byTitle(a, b);
     },
-    "added": function (a, b) { return (b.added - a.added) || cmpText(a.title, b.title); },
+    "added": function (a, b) { return (b.added - a.added) || byTitle(a, b); },
     "series": function (a, b) {
       var sa = seasonOf(a), sb = seasonOf(b);
       if (sa && sa.season === null) sa = null;  // a film on several discs sorts by title
       if (sb && sb.season === null) sb = null;
       if (!sa !== !sb) return sa ? -1 : 1;  // discs of a season first
-      if (!sa) return cmpText(a.title, b.title) || byDiscNumber(a, b);
+      if (!sa) return byTitle(a, b) || byDiscNumber(a, b);
       return cmpText(sa.name, sb.name) ||
         (num(a.tmdb_series, 0) - num(b.tmdb_series, 0)) ||  // same-named series (a revival) apart
         (sa.season - sb.season) ||
@@ -129,7 +134,7 @@
       if (prefs.status === "watched" && !d.watched) return false;
       if (prefs.status === "unwatched" && d.watched) return false;
       if (q) {
-        var hay = (d.title + " " + (d.artist || "") + " " + d.genres.join(" ")).toLowerCase();
+        var hay = (d.title + " " + (d.sort_title || "") + " " + (d.artist || "") + " " + d.genres.join(" ")).toLowerCase();
         if (hay.indexOf(q) === -1) return false;
       }
       return true;
@@ -259,7 +264,7 @@
 
     var coverUrl = "/api/cover/" + d.id + "?v=" + d.cover_v;
     var img = document.createElement("span");
-    img.className = "cover";
+    img.className = "cover" + (d.cover_fill ? " fill" : "");
     var bg = document.createElement("img");
     bg.className = "bg";
     bg.alt = "";
@@ -370,7 +375,7 @@
 
     var coverUrl = "/api/cover/" + first.id + "?v=" + first.cover_v;
     var img = document.createElement("span");
-    img.className = "cover";
+    img.className = "cover" + (first.cover_fill ? " fill" : "");
     ["bg", "fg"].forEach(function (cls) {
       var el = document.createElement("img");
       el.className = cls;
@@ -680,14 +685,14 @@
     var note = $("ed-cover-note");
     var rm = $("ed-cover-remove");
     note.hidden = true;
-    img.className = "";
+    img.className = $("ed-fill").checked ? "fill" : "";
     if (pendingFile) {
       img.src = URL.createObjectURL(pendingFile);
       note.hidden = false;
       note.textContent = "The new cover will be applied when you save.";
     } else if (removeCover) {
       img.src = "/api/cover/" + editing.id + "?v=" + editing.cover_v;
-      img.className = "faded";
+      img.className += " faded";
       note.hidden = false;
       note.textContent = "The custom cover will be removed when you save.";
     } else {
@@ -709,6 +714,8 @@
 
     $("ed-title").value = c.title || "";
     $("ed-title").placeholder = a.title || "";
+    $("ed-sort").value = c.sort_title || "";
+    $("ed-sort").placeholder = c.title || a.title || "";
     $("ed-year").value = c.year !== undefined && c.year !== null ? c.year : "";
     $("ed-year").placeholder = a.year || "";
     $("ed-season").value = c.season !== undefined && c.season !== null ? c.season : "";
@@ -718,6 +725,7 @@
     $("ed-synopsis").value = c.synopsis || "";
     $("ed-synopsis").placeholder = a.synopsis || "";
     $("ed-watched").checked = !!d.watched;
+    $("ed-fill").checked = !!d.cover_fill;
     $("ed-watched-label").textContent = cap(seenWord(d));
     document.querySelector(".ed-cover").classList.toggle("cd", d.kind === "cd");
     $("ed-posters").hidden = d.kind === "cd" || !tmdbOn;
@@ -768,12 +776,14 @@
     if (!d) return;
     var payload = {
       title: $("ed-title").value,
+      sort_title: $("ed-sort").value,
       year: numOrNull("ed-year"),
       season: numOrNull("ed-season"),
       disc: numOrNull("ed-disc"),
       genres: genreList(),
       synopsis: $("ed-synopsis").value,
-      watched: $("ed-watched").checked
+      watched: $("ed-watched").checked,
+      cover_fill: $("ed-fill").checked
     };
     edSave.disabled = true;
     edError.hidden = true;
@@ -793,6 +803,12 @@
     pendingFile = f;
     removeCover = false;
     setCoverPreview();
+  });
+
+  $("ed-fill").addEventListener("change", setCoverPreview);
+  // an empty sort title sorts by the title: show which one
+  $("ed-title").addEventListener("input", function () {
+    $("ed-sort").placeholder = $("ed-title").value.trim() || $("ed-title").placeholder;
   });
 
   $("ed-cover-remove").addEventListener("click", function () {

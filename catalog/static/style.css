@@ -121,6 +121,9 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   height: 100%;
   object-fit: contain;
 }
+/* "Fill the space" in the editor: the cover is cropped to 2:3 instead of shown whole */
+.card .cover.fill .bg { display: none; }
+.card .cover.fill .fg { object-fit: cover; }
 .card:focus, .card:hover { outline: none; transform: scale(1.04); }
 .card:focus .cover, .card:hover .cover {
   outline-color: var(--accent);
@@ -339,7 +342,10 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   border-radius: var(--radius);
   background: var(--panel-2);
 }
+.ed-cover img.fill { object-fit: cover; }
 .ed-cover img.faded { opacity: .3; }
+.panel label.fill-check { margin-top: 10px; font-size: 14px; align-items: flex-start; }
+.panel label.fill-check input { flex: none; width: 18px; height: 18px; }
 .ed-cover .btn, .ed-cover button {
   display: block;
   width: 100%;

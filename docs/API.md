@@ -47,6 +47,7 @@ A disc:
 | `id` | Stable id (12 hex characters, from the file path) |
 | `kind` | `"dvd"` or `"cd"` |
 | `title`, `year`, `genres`, `synopsis` | Effective values (your edits over the automatic ones) |
+| `sort_title` | What the disc sorts by: the sort title set in the editor, or else `title`. `discs` come in this order |
 | `artist`, `track_count`, `duration` | Audio CDs only (`duration` in seconds) |
 | `watched` | Watched (DVD) or listened (CD) flag |
 | `resume` | `null`, or where it was left: `{ "time": seconds, "pct": 0-100 or null }`. For CDs it also has `track` (1-based) and `track_time` (seconds into that track) |
@@ -56,6 +57,7 @@ A disc:
 | `label`, `size`, `rel`, `added` | Volume label, bytes, path relative to the media folder, mtime |
 | `cover_v` | Cache-busting value for the cover URL |
 | `custom_cover` | `true` when the cover was uploaded by hand |
+| `cover_fill` | `true` when the cover should fill its 2:3 space (cropped) instead of being shown whole |
 | `custom`, `auto` | The raw user edits and the automatic values behind the effective ones |
 
 ### `GET /api/cover/<id>`
@@ -68,7 +70,7 @@ CORS, so `<img>` works from any client.
 
 | Call | Body | Effect |
 |---|---|---|
-| `PUT /api/disc/<id>/meta` | `{title, year, genres[], synopsis, season, disc, watched}` | Replaces all edits. Empty fields fall back to the automatic value. `400` on invalid values |
+| `PUT /api/disc/<id>/meta` | `{title, sort_title, year, genres[], synopsis, season, disc, watched, cover_fill}` | Replaces all edits. Empty fields fall back to the automatic value. `400` on invalid values |
 | `POST /api/disc/<id>/watched` | `{"watched": true}` | Sets or clears the watched/listened flag |
 | `POST /api/disc/<id>/lookup` | `{"query": "optional search text"}` | Searches TMDB (DVD, needs `TMDB_API_KEY`) or MusicBrainz (CD) again. Returns `{found, cover, disc}` |
 | `GET /api/disc/<id>/posters?query=` | none | DVD, needs `TMDB_API_KEY`. The posters to choose from: `{query, current, matches[], thumb_url, covered}`. `current` is the matched film or series `{tmdb_kind, tmdb_id, title, year, season, poster_path, posters[]}` (or `null`), `matches` the titles the search finds `{tmdb_kind, tmdb_id, title, year, poster_path}`. `query` defaults to what the disc is searched as. Image URLs are `thumb_url` + a poster path. `covered` is true when an uploaded cover or an image next to the ISO is shown instead. Posters in every language are listed, those in `TMDB_LANGUAGE` first. With `?tmdb_kind=movie&tmdb_id=597` instead, only that title's posters: `{posters[], thumb_url}` |

@@ -81,6 +81,7 @@
       <div class="ed-grid">
         <div class="ed-cover">
           <img id="ed-cover" alt="Current cover">
+          <label class="check fill-check"><input id="ed-fill" type="checkbox"> Fill the space (crops the edges)</label>
           <label class="btn" for="ed-cover-file">Change cover</label>
           <input id="ed-cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
           <button type="button" id="ed-posters" hidden>Choose online poster</button>
@@ -91,6 +92,9 @@
         <div class="ed-fields">
           <label>Title
             <input id="ed-title" type="text" maxlength="200">
+          </label>
+          <label>Sort as <span class="muted small">(empty: by the title)</span>
+            <input id="ed-sort" type="text" maxlength="200">
           </label>
           <div class="row">
             <label>Year
