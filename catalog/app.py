@@ -524,21 +524,25 @@ def tmdb_candidates(terms: dict) -> list[dict]:
 
 
 def tmdb_posters(kind: str, tmdb_id: int, season: int | None) -> list[str]:
-    """The posters TMDB holds for a film or series (the season's first, for a season disc) in the
-    catalog's language, in English or without text."""
-    langs = ",".join(dict.fromkeys([TMDB_LANGUAGE.split("-")[0], "en", "null"]))
+    """Every poster TMDB holds for a film or series (the season's first, for a season disc), in
+    any language: those in the catalog's language come first, then English, then without text.
+    (A Brazilian film may only have Portuguese posters, so no language is left out.)"""
+    order = list(dict.fromkeys([TMDB_LANGUAGE.split("-")[0], "en", None]))
     sources = [f"/{kind}/{tmdb_id}/images"]
     if kind == "tv" and season is not None:
         sources.insert(0, f"/tv/{tmdb_id}/season/{season}/images")
     paths: list[str] = []
     for src in sources:
         try:
-            posters = tmdb_get(src, include_image_language=langs).get("posters", [])
+            posters = tmdb_get(src).get("posters", [])  # no language asked: TMDB sends them all
         except urllib.error.HTTPError as exc:  # e.g. no such season on TMDB
             app.logger.warning("No posters at TMDB %s: HTTP %s", src, exc.code)
             continue
+        # sorted() is stable, so TMDB's own order (by votes) stays within each language
+        posters = sorted(posters, key=lambda p: order.index(p.get("iso_639_1"))
+                         if p.get("iso_639_1") in order else len(order))
         paths += [p["file_path"] for p in posters if p.get("file_path") and p["file_path"] not in paths]
-    return paths[:60]
+    return paths[:80]
 
 
 def tmdb_details(kind: str, tmdb_id: int) -> dict:
@@ -1044,8 +1048,19 @@ def api_posters(disc_id: str):
     disc = get_disc(disc_id)
     if err := _tmdb_dvd(disc):
         return err
-    query = request.args.get("query", "").strip()[:200]
+    thumb_url = re.sub(r"/w\d+$", "/w185", TMDB_IMAGE_URL)  # TMDB_IMAGE_URL's "w500" becomes "w185"
     meta = read_meta(disc_id)
+    terms = search_terms(disc)
+    kind, tmdb_id = request.args.get("tmdb_kind"), request.args.get("tmdb_id", "")
+    if kind or tmdb_id:  # only the posters of one title: ?tmdb_kind=movie&tmdb_id=597
+        if kind not in ("tv", "movie") or not tmdb_id.isdigit():
+            return jsonify({"error": "Invalid title"}), 400
+        try:
+            posters = tmdb_posters(kind, int(tmdb_id), terms["disc_season"] if kind == "tv" else None)
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+            return jsonify({"error": f"Search failed: {exc}"}), 502
+        return jsonify({"posters": posters, "thumb_url": thumb_url})
+    query = request.args.get("query", "").strip()[:200]
     terms = search_terms(disc, query or None)
     try:
         matches = tmdb_candidates(terms)
@@ -1067,8 +1082,7 @@ def api_posters(disc_id: str):
         "query": terms["title"],
         "current": current,
         "matches": matches,
-        # smaller images for the thumbnails ("w500" in TMDB_IMAGE_URL becomes "w185")
-        "thumb_url": re.sub(r"/w\d+$", "/w185", TMDB_IMAGE_URL),
+        "thumb_url": thumb_url,  # smaller images for the thumbnails
         "covered": bool(find_custom_cover(disc["fp"]) or disc["user_cover"]),
     })
 

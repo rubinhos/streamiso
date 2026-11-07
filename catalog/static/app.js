@@ -889,10 +889,49 @@
         b.appendChild(c);
       }
       b.addEventListener("click", function () { choosePoster(it); });
-      box.appendChild(b);
+      if (!it.caption) { box.appendChild(b); return; }
+      // another title: its main poster, and a button that shows all of its posters
+      var cell = document.createElement("div");
+      cell.className = "pk-cell";
+      cell.appendChild(b);
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "pk-more";
+      more.textContent = "All posters";
+      more.addEventListener("click", function () { showAllPosters(it, sec, more); });
+      cell.appendChild(more);
+      box.appendChild(cell);
     });
     sec.appendChild(box);
     return sec;
+  }
+
+  // Shows every poster of another title in a section of its own, above the list of titles.
+  function showAllPosters(it, titlesSection, btn) {
+    var d = editing;
+    if (!d) return;
+    var seq = pkSearchSeq;
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    api("/api/disc/" + d.id + "/posters?tmdb_kind=" + it.tmdb_kind + "&tmdb_id=" + it.tmdb_id)
+      .then(function (res) {
+        if (seq !== pkSearchSeq || editing !== d) return;
+        btn.remove();
+        if (!res.posters.length) return;
+        var sec = pickerSection("Posters of " + it.caption, res.posters.map(function (p) {
+          return { poster_path: p, tmdb_kind: it.tmdb_kind, tmdb_id: it.tmdb_id };
+        }), res.thumb_url);
+        pkBody.insertBefore(sec, titlesSection);
+        sec.scrollIntoView({ block: "start", behavior: "smooth" });
+        var first = sec.querySelector(".pk-thumb");
+        if (first) { try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); } }
+      })
+      .then(null, function (err) {
+        btn.disabled = false;
+        btn.textContent = "All posters";
+        pkNote.className = "error";
+        pkNote.textContent = err && err.message ? err.message : "Could not load the posters.";
+      });
   }
 
   function searchPosters() {

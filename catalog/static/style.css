@@ -237,6 +237,17 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .pk-thumb:hover img, .pk-thumb:focus img { border-color: var(--accent); }
 .pk-thumb:disabled { opacity: .5; cursor: default; }
 .pk-caption { font-size: 13px; line-height: 1.3; color: var(--muted); }
+.pk-cell { display: flex; flex-direction: column; gap: 6px; }
+.pk-more {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.pk-more:hover, .pk-more:focus { border-color: var(--accent); }
 
 .tools {
   position: absolute;
