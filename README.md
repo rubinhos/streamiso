@@ -75,7 +75,7 @@ The server does the work that an old DVD player would do, and any screen with a 
 - The discs of a season, or of a film on several discs (`Titanic Disc 2.iso`), form one card
 - **Choose online poster** in the editor shows every poster TMDB has for the title, and the other titles the search finds
 - Metadata you control: title, year, genres, synopsis, **season / disc number**, watched flag, custom cover
-- Covers are shown whole (centered over a blurred copy of themselves), or fill their space if you choose so in the editor; audio CD covers are square
+- Covers fill their space, or are shown whole (centered over a blurred copy of themselves) if you choose so in the editor; audio CD covers are square
 - Edits are tied to a fingerprint of each image, so renaming or moving files loses nothing
 - Navigable with arrow keys (TV remote)
 
@@ -311,7 +311,7 @@ Looked up in this order:
 4. TMDB, if `TMDB_API_KEY` is set. The file name is used for the search; `Title (1999).iso` improves matches. A disc of a TV season (a **Season** set in the editor, or `S02` / `Season 2` / `T2` in the file name) gets that season's poster instead of the series poster
 5. A generated cover with the title
 
-Covers are shown whole. If a cover is not 2:3 (a CD-sized or landscape image, say), it is centered on a blurred, desaturated copy of itself. To have a cover fill its space instead, tick **Fill the space** under it in the editor: it is then cropped at the edges.
+Covers fill their space, cropped at the edges if they are not 2:3. To show a cover whole instead, untick **Fill the space** under it in the editor: a cover that is not 2:3 (a CD-sized or landscape image, say) is then centered on a blurred, desaturated copy of itself.
 
 To use another poster than the one picked automatically, open the editor (✎) and click **Choose online poster**. It shows the posters TMDB has for the matched title (a season's own posters first) and, below, the other titles the search finds; type another name in its search box to look further. Picking a poster from another title also takes that title's synopsis, genres and year. For a season or a film on several discs, the poster can go to all of its discs at once. A cover you uploaded, or an image next to the ISO, is still shown first.
 

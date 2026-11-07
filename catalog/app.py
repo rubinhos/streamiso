@@ -709,8 +709,10 @@ def clean_meta(payload: dict) -> dict:
         out["disc"] = disc
     if payload.get("watched"):
         out["watched"] = True
-    if payload.get("cover_fill"):  # the cover fills its space (cropped) instead of being shown whole
-        out["cover_fill"] = True
+    # Covers fill their space (cropped) unless "cover_fill": false shows this one whole. Only
+    # that is stored; a payload without the field keeps the default.
+    if payload.get("cover_fill") is False:
+        out["cover_fill"] = False
     return out
 
 
@@ -773,7 +775,7 @@ def disc_view(d: dict, lib: dict) -> dict:
         "genres": ov.get("genres") or auto["genres"],
         "synopsis": ov.get("synopsis") or auto["synopsis"],
         "watched": bool(ov.get("watched")),
-        "cover_fill": bool(ov.get("cover_fill")),
+        "cover_fill": ov.get("cover_fill") is not False,  # filling is the default
         "resume": resume_view(d),
         # the TV series found on TMDB: groups the discs of a season apart from a same-named series
         "tmdb_series": meta.get("tmdb_id") if meta.get("tmdb_kind") == "tv" else None,
