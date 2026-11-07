@@ -83,6 +83,7 @@
           <img id="ed-cover" alt="Current cover">
           <label class="btn" for="ed-cover-file">Change cover</label>
           <input id="ed-cover-file" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <button type="button" id="ed-posters" hidden>Choose online poster</button>
           <button type="button" id="ed-cover-remove">Remove custom cover</button>
           <p id="ed-cover-note" class="muted small" hidden></p>
         </div>
@@ -128,6 +129,25 @@
         <button type="submit" id="ed-save" class="primary">Save</button>
       </div>
     </form>
+  </div>
+
+  <div id="posters" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="pk-heading">
+    <div class="panel picker-panel">
+      <div class="season-head">
+        <h2 id="pk-heading">Choose a poster</h2>
+        <div class="spacer"></div>
+        <button type="button" id="pk-close" title="Close" aria-label="Close">&#x2715;</button>
+      </div>
+      <div class="lookup">
+        <label class="grow">Search for
+          <input id="pk-query" type="text" maxlength="200">
+        </label>
+        <button type="button" id="pk-search">Search</button>
+      </div>
+      <label id="pk-all-row" class="check" hidden><input id="pk-all" type="checkbox"> <span id="pk-all-label"></span></label>
+      <p id="pk-note" class="muted small"></p>
+      <div id="pk-body"></div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

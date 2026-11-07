@@ -136,6 +136,28 @@ def parse_season(title: str) -> tuple[str, int] | None:
     return (name, int(m.group(1))) if name else None
 
 
+# Disc number of a film on several discs, e.g. "Titanic Disc 2", "Lawrence of Arabia - DVD 1",
+# "Ben-Hur D2", "Gandhi (Disco 1 de 2)". Keep in step with FILM_DISC_RE in static/app.js.
+FILM_DISC_RE = re.compile(
+    r"(?:^|[\s\-–:,(\[])(?:dis[ck]o?|dvd|cd|d)\s*0*(\d{1,2})"
+    r"(?=$|[\s\-–:,)\]]|\s*(?:of|de|/)\s*\d)",
+    re.IGNORECASE,
+)
+
+
+def parse_film_disc(title: str) -> tuple[str, int] | None:
+    """(film name, disc number) from a title like "Titanic Disc 2", else None."""
+    m = FILM_DISC_RE.search(title or "")
+    name = re.sub(r"[\s\-–:,(\[]+$", "", title[:m.start()]).strip() if m else ""
+    return (name, int(m.group(1))) if name else None
+
+
+def film_name(title: str) -> str:
+    """The title without a "Disc 2" in it: what to search for online."""
+    parsed = parse_film_disc(title)
+    return parsed[0] if parsed else title
+
+
 def disc_season(disc: dict, rec: dict) -> tuple[str, int | None]:
     """The series name and season of a DVD, like seasonOf() in static/app.js.
 
@@ -392,24 +414,15 @@ def lookup_dvd(disc: dict, query: str | None = None) -> bool:
     A disc of a TV season (season edited or written in its title) gets that season's poster.
     A manual query may name the year and season too: "Will & Grace (2017) S01 D2".
     """
-    rec = load_library().get(disc["fp"], {})
-    series, season = disc_season(disc, rec)
-    disc_season_no = season  # what enrich_all compares against; a query's season is not the disc's
-    year = disc["year"]
-    if query:  # "Will & Grace (2017)": the year picks the film or series of that year
-        m = re.search(r"\(((?:19|20)\d{2})\)", query)
-        year = m.group(1) if m else None
-        query = re.sub(r"\s+", " ", re.sub(r"\((?:19|20)\d{2}\)", " ", query)).strip() or query
-        if parsed := parse_season(query):
-            query, season = parsed
-            series = query
-    title = query or (series if season is not None else rec.get("title") or disc["title"])
-    tv_year = year if query else year or rec.get("year")
-    hit = tmdb_lookup(title, year, prefer_tv=season is not None, tv_year=tv_year)
+    terms = search_terms(disc, query)
+    hit = tmdb_lookup(terms["title"], terms["year"], prefer_tv=terms["season"] is not None,
+                      tv_year=terms["tv_year"])
     if hit is None:
-        _store_meta(disc["id"], {"miss": True, "season_checked": disc_season_no, "checked": int(time.time())})
+        _store_meta(disc["id"], {"miss": True, "season_checked": terms["disc_season"],
+                                 "searched": terms["auto_title"], "checked": int(time.time())})
         return False
     poster = hit["poster_path"]
+    season = terms["season"]
     if season is not None and hit["tmdb_kind"] == "tv":
         try:
             season_poster = tmdb_get(f"/tv/{hit['tmdb_id']}/season/{season}",
@@ -418,23 +431,128 @@ def lookup_dvd(disc: dict, query: str | None = None) -> bool:
                 poster = season_poster
                 hit["season_poster"] = True
         except urllib.error.HTTPError as exc:  # no such season on TMDB: keep the series poster
-            app.logger.warning("No season %s on TMDB for %r: HTTP %s", season, series, exc.code)
-    COVER_DIR.mkdir(parents=True, exist_ok=True)
+            app.logger.warning("No season %s on TMDB for %r: HTTP %s", season, terms["title"], exc.code)
     if not disc["user_cover"]:
-        img = urllib.request.Request(
-            f"{TMDB_IMAGE_URL}{poster}",
-            headers={"User-Agent": f"streamiso/{VERSION}"},
-        )
-        try:
-            with urllib.request.urlopen(img, timeout=20) as resp:
-                (COVER_DIR / f"{disc['id']}.jpg").write_bytes(resp.read())
-        except urllib.error.HTTPError as exc:  # the details are still worth keeping without the poster
-            app.logger.warning("Poster download failed for %r: HTTP %s", disc["title"], exc.code)
-    meta = {k: v for k, v in hit.items() if k != "poster_path"}
-    meta["season_checked"] = disc_season_no  # redone when the season changes (see enrich_all)
+        download_poster(disc, poster)
+    meta = dict(hit, poster_path=poster)
+    meta["season"] = season  # the season whose posters the poster picker shows first
+    meta["season_checked"] = terms["disc_season"]  # redone when the season changes (see enrich_all)
+    meta["searched"] = terms["auto_title"]
     meta["checked"] = int(time.time())
     _store_meta(disc["id"], meta)
     return True
+
+
+def search_terms(disc: dict, query: str | None = None, rec: dict | None = None) -> dict:
+    """What to search TMDB for: title, year, season (of a TV season disc) and tv_year.
+
+    A manual query may name the year and season too: "Will & Grace (2017) S01 D2". A film on
+    several discs is searched without its "Disc 2". "disc_season" and "auto_title" are what an
+    automatic lookup searches for, so enrich_all can tell when to look the disc up again.
+    rec holds the user's edits (read from library.json when not given).
+    """
+    if rec is None:
+        rec = load_library().get(disc["fp"], {})
+    series, season = disc_season(disc, rec)
+    disc_season_no = season
+    auto_title = series if season is not None else film_name(rec.get("title") or disc["title"])
+    year = disc["year"]
+    if query:  # "Will & Grace (2017)": the year picks the film or series of that year
+        m = re.search(r"\(((?:19|20)\d{2})\)", query)
+        year = m.group(1) if m else None
+        query = re.sub(r"\s+", " ", re.sub(r"\((?:19|20)\d{2}\)", " ", query)).strip() or query
+        if parsed := parse_season(query):
+            query, season = parsed
+        else:
+            query = film_name(query)
+    return {
+        "title": query or auto_title,
+        "year": year,
+        "season": season,
+        "tv_year": year if query else year or rec.get("year"),
+        "disc_season": disc_season_no,
+        "auto_title": auto_title,
+    }
+
+
+def download_poster(disc: dict, poster_path: str) -> bool:
+    """Save a TMDB poster as the disc's downloaded cover. False if TMDB has no such image."""
+    COVER_DIR.mkdir(parents=True, exist_ok=True)
+    img = urllib.request.Request(f"{TMDB_IMAGE_URL}{poster_path}",
+                                 headers={"User-Agent": f"streamiso/{VERSION}"})
+    try:
+        with urllib.request.urlopen(img, timeout=20) as resp:
+            data = resp.read()
+    except urllib.error.HTTPError as exc:  # the details are still worth keeping without the poster
+        app.logger.warning("Poster download failed for %r: HTTP %s", disc["title"], exc.code)
+        return False
+    tmp = COVER_DIR / f"{disc['id']}.jpg.tmp"
+    tmp.write_bytes(data)
+    tmp.replace(COVER_DIR / f"{disc['id']}.jpg")
+    return True
+
+
+def tmdb_candidates(terms: dict) -> list[dict]:
+    """The TMDB films and series with a poster that the search terms find (from the first query
+    of title_variants that finds any), series first for a season disc."""
+    out: list[dict] = []
+    seen: set[tuple[str, int]] = set()
+    kinds = ("tv", "movie") if terms["season"] is not None else ("movie", "tv")
+    for query, strict in title_variants(terms["title"]):
+        want = set(_words(query))
+        for kind in kinds:
+            params = {"query": query, "language": TMDB_LANGUAGE, "include_adult": "false"}
+            if terms["year"] and kind == "movie":
+                params["year"] = terms["year"]
+            for r in tmdb_get(f"/search/{kind}", **params).get("results", []):
+                names = " ".join(filter(None, [r.get("title"), r.get("name"), r.get("original_title"),
+                                               r.get("original_name")]))
+                if not r.get("poster_path") or (kind, r["id"]) in seen or \
+                        (strict and not want <= set(_words(names))):
+                    continue
+                seen.add((kind, r["id"]))
+                out.append({
+                    "tmdb_kind": kind,
+                    "tmdb_id": r["id"],
+                    "title": r.get("title") or r.get("name") or "",
+                    "year": (r.get("release_date") or r.get("first_air_date") or "")[:4],
+                    "poster_path": r["poster_path"],
+                })
+        if out:
+            break
+    return out[:24]
+
+
+def tmdb_posters(kind: str, tmdb_id: int, season: int | None) -> list[str]:
+    """The posters TMDB holds for a film or series (the season's first, for a season disc) in the
+    catalog's language, in English or without text."""
+    langs = ",".join(dict.fromkeys([TMDB_LANGUAGE.split("-")[0], "en", "null"]))
+    sources = [f"/{kind}/{tmdb_id}/images"]
+    if kind == "tv" and season is not None:
+        sources.insert(0, f"/tv/{tmdb_id}/season/{season}/images")
+    paths: list[str] = []
+    for src in sources:
+        try:
+            posters = tmdb_get(src, include_image_language=langs).get("posters", [])
+        except urllib.error.HTTPError as exc:  # e.g. no such season on TMDB
+            app.logger.warning("No posters at TMDB %s: HTTP %s", src, exc.code)
+            continue
+        paths += [p["file_path"] for p in posters if p.get("file_path") and p["file_path"] not in paths]
+    return paths[:60]
+
+
+def tmdb_details(kind: str, tmdb_id: int) -> dict:
+    """The details lookup_dvd keeps, for a film or series picked by hand."""
+    r = tmdb_get(f"/{kind}/{tmdb_id}", language=TMDB_LANGUAGE)
+    return {
+        "tmdb_kind": kind,
+        "tmdb_id": tmdb_id,
+        "overview": r.get("overview", ""),
+        "tmdb_title": r.get("title") or r.get("name") or "",
+        "tmdb_year": (r.get("release_date") or r.get("first_air_date") or "")[:4],
+        "rating": r.get("vote_average"),
+        "genres": [g["name"] for g in r.get("genres", []) if g.get("name")],
+    }
 
 
 def lookup_cd(disc: dict, query: str | None = None) -> bool:
@@ -473,8 +591,13 @@ def enrich_all() -> None:
                 old = read_meta(disc["id"])
                 # Already looked up; DVD lookups are redone when they predate genres or when the
                 # disc's season changed (edited or renamed), so the cover is that season's poster.
+                # A miss is also redone when the title it searches for changed (a film on several
+                # discs is now searched without its "Disc 2").
+                rec = lib.get(disc["fp"], {})
                 if is_cd or ((old.get("miss") or "genres" in old) and
-                             old.get("season_checked") == disc_season(disc, lib.get(disc["fp"], {}))[1]):
+                             old.get("season_checked") == disc_season(disc, rec)[1] and
+                             not (old.get("miss") and
+                                  old.get("searched") != search_terms(disc, rec=rec)["auto_title"])):
                     continue
             try:
                 (lookup_cd if is_cd else lookup_dvd)(disc)
@@ -899,6 +1022,93 @@ def api_lookup(disc_id: str):
         _enrich_lock.release()
     cover = True if not found else bool(disc.pop("_cover_found", True))
     return jsonify({"found": found, "cover": cover, "disc": disc_view(disc, load_library())})
+
+
+POSTER_PATH_RE = re.compile(r"^/[A-Za-z0-9_-]{1,100}\.(?:jpe?g|png|webp)$")
+
+
+def _tmdb_dvd(disc: dict):
+    """An error response when the disc cannot get a poster from TMDB, else None."""
+    if disc.get("kind") == "cd":
+        return jsonify({"error": "Posters come from TMDB, which only has films and series"}), 400
+    if not TMDB_API_KEY:
+        return jsonify({"error": "Set TMDB_API_KEY in the .env file to search for DVDs"}), 400
+    return None
+
+
+@app.get("/api/disc/<disc_id>/posters")
+def api_posters(disc_id: str):
+    """The posters to choose from: the alternatives of the film or series the disc is matched to
+    (the season's first) and the poster of every TMDB result for the search (?query= or, without
+    it, what the disc is searched as)."""
+    disc = get_disc(disc_id)
+    if err := _tmdb_dvd(disc):
+        return err
+    query = request.args.get("query", "").strip()[:200]
+    meta = read_meta(disc_id)
+    terms = search_terms(disc, query or None)
+    try:
+        matches = tmdb_candidates(terms)
+        current = None
+        if meta.get("tmdb_kind") in ("tv", "movie") and meta.get("tmdb_id"):
+            season = meta.get("season", terms["disc_season"]) if meta["tmdb_kind"] == "tv" else None
+            current = {
+                "tmdb_kind": meta["tmdb_kind"],
+                "tmdb_id": meta["tmdb_id"],
+                "title": meta.get("tmdb_title", ""),
+                "year": meta.get("tmdb_year", ""),
+                "season": season,
+                "poster_path": meta.get("poster_path"),
+                "posters": tmdb_posters(meta["tmdb_kind"], meta["tmdb_id"], season),
+            }
+    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+        return jsonify({"error": f"Search failed: {exc}"}), 502
+    return jsonify({
+        "query": terms["title"],
+        "current": current,
+        "matches": matches,
+        # smaller images for the thumbnails ("w500" in TMDB_IMAGE_URL becomes "w185")
+        "thumb_url": re.sub(r"/w\d+$", "/w185", TMDB_IMAGE_URL),
+        "covered": bool(find_custom_cover(disc["fp"]) or disc["user_cover"]),
+    })
+
+
+@app.post("/api/disc/<disc_id>/poster")
+def api_poster_set(disc_id: str):
+    """Use a TMDB poster as the disc's cover: {poster_path, tmdb_kind, tmdb_id}. A film or series
+    other than the one the disc is matched to becomes its match, with that title's details."""
+    disc = get_disc(disc_id)
+    if err := _tmdb_dvd(disc):
+        return err
+    payload = request.get_json(silent=True)
+    payload = payload if isinstance(payload, dict) else {}
+    path, kind, tmdb_id = payload.get("poster_path"), payload.get("tmdb_kind"), payload.get("tmdb_id")
+    if not isinstance(path, str) or not POSTER_PATH_RE.match(path) or kind not in ("tv", "movie") \
+            or not isinstance(tmdb_id, int) or isinstance(tmdb_id, bool) or tmdb_id <= 0:
+        return jsonify({"error": "Invalid poster"}), 400
+    if not _enrich_lock.acquire(timeout=60):
+        return jsonify({"error": "A background lookup is still running, try again in a minute"}), 503
+    try:
+        meta = read_meta(disc_id)
+        terms = search_terms(disc)
+        if meta.get("tmdb_kind") != kind or meta.get("tmdb_id") != tmdb_id:
+            meta = tmdb_details(kind, tmdb_id)
+            meta["season"] = terms["disc_season"] if kind == "tv" else None
+            meta["matched"] = "(chosen by hand)"
+        if not download_poster(disc, path):
+            return jsonify({"error": "TMDB could not send that poster"}), 502
+    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+        return jsonify({"error": f"Could not get the poster: {exc}"}), 502
+    finally:
+        _enrich_lock.release()
+    meta.pop("miss", None)
+    meta.update(poster_path=path, poster_chosen=True, season_checked=terms["disc_season"],
+                searched=terms["auto_title"], checked=int(time.time()))
+    _store_meta(disc_id, meta)
+    return jsonify({
+        "disc": disc_view(disc, load_library()),
+        "covered": bool(find_custom_cover(disc["fp"]) or disc["user_cover"]),
+    })
 
 
 @app.post("/api/disc/<disc_id>/cover")

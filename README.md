@@ -72,6 +72,8 @@ The server does the work that an old DVD player would do, and any screen with a 
 - Automatic covers, synopses, years and genres: **TMDB** for DVDs (free API key), **MusicBrainz + Cover Art Archive** for CDs (no key)
 - Smart matching for long file names (falls back to shorter names, down to the series name), plus a **Search again** button in the editor for manual searches
 - Season discs get the poster of their own season (`Show S02 D1.iso`, or a season set in the editor)
+- The discs of a season, or of a film on several discs (`Titanic Disc 2.iso`), form one card
+- **Choose online poster** in the editor shows every poster TMDB has for the title, and the other titles the search finds
 - Metadata you control: title, year, genres, synopsis, **season / disc number**, watched flag, custom cover
 - Covers are always shown whole (centered over a blurred copy of themselves); audio CD covers are square
 - Edits are tied to a fingerprint of each image, so renaming or moving files loses nothing
@@ -311,6 +313,8 @@ Looked up in this order:
 
 Covers are always shown whole. If a cover is not 2:3 (a CD-sized or landscape image, say), it is centered on a blurred, desaturated copy of itself.
 
+To use another poster than the one picked automatically, open the editor (✎) and click **Choose online poster**. It shows the posters TMDB has for the matched title (a season's own posters first) and, below, the other titles the search finds; type another name in its search box to look further. Picking a poster from another title also takes that title's synopsis, genres and year. For a season or a film on several discs, the poster can go to all of its discs at once. A cover you uploaded, or an image next to the ISO, is still shown first.
+
 If a disc gets no cover or the wrong one, open the editor (✎), type the name of the series, film or album in **Search online as** and click **Search again**. Add the year in parentheses to pick between titles with the same name, e.g. `Will & Grace (2017)` for the revival instead of the 1998 series (for a series, the year it first aired). A season works there too: `Will & Grace (2017) S01` gets the poster of the revival's first season. Long file names such as `Show Name Special Episode Title` are also retried automatically with shorter names (down to the series name), and a result must contain every word of a shortened name to be accepted.
 
 Audio CD covers are shown square. The Cover Art Archive often has art only for a specific release of an album, so when the album itself has none, the releases inside it are tried too.
@@ -344,6 +348,10 @@ For a TV series spread over several discs, give each disc the series name as its
 **Disc** (or name the files `Show S02 D1.iso`, which needs no editing), then sort by "Series & season". Discs matched to
 the same TV series on TMDB form one season even if their titles differ, and a revival with the same name as the
 original (`Will & Grace`, 2017: set **Year** 2017) stays apart from it.
+
+A film on several discs works the same way without a season: name the files `Titanic Disc 1.iso` and
+`Titanic Disc 2.iso` (also `DVD 2`, `D2`, `CD 2` or `Disco 2 de 2`), or give each disc the same **Title** and fill in
+**Disc**. The discs form one card, and TMDB is searched for the film's name without the disc number.
 
 Edits are stored in `data/library.json` and `data/covers_custom/`. **Back up the `data/` folder.** They are tied to a
 fingerprint of the ISO (volume label, creation date, size), not its path, so renaming or moving a file keeps them.

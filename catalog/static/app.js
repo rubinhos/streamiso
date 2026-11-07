@@ -33,6 +33,7 @@
   var allDiscs = [];
   var knownGenres = [];
   var mediaDir = "/media";
+  var tmdbOn = false;  // DVD posters and details can be looked up on TMDB
   var prefs = { sort: "title", genre: "", status: "", kind: "" };
   var firstLoad = true;
 
@@ -108,8 +109,10 @@
     "added": function (a, b) { return (b.added - a.added) || cmpText(a.title, b.title); },
     "series": function (a, b) {
       var sa = seasonOf(a), sb = seasonOf(b);
+      if (sa && sa.season === null) sa = null;  // a film on several discs sorts by title
+      if (sb && sb.season === null) sb = null;
       if (!sa !== !sb) return sa ? -1 : 1;  // discs of a season first
-      if (!sa) return cmpText(a.title, b.title);
+      if (!sa) return cmpText(a.title, b.title) || byDiscNumber(a, b);
       return cmpText(sa.name, sb.name) ||
         (num(a.tmdb_series, 0) - num(b.tmdb_series, 0)) ||  // same-named series (a revival) apart
         (sa.season - sb.season) ||
@@ -157,6 +160,17 @@
   // "Dexter T1 Disco 4". The series name is what comes before the season.
   var SEASON_RE = /(?:^|[\s\-–:,(])(?:season|temporada|saison|staffel|s|t)\s*0*(\d{1,3})(?=$|[\s\-–:,)]|d(?:is[ck]o?)?\s*\d|e\d)/i;
   var DISC_RE = /(?:^|[\s\-–:,(\d])(?:dis[ck]o?|dvd|d)\s*0*(\d{1,3})(?=$|[^\d])/i;
+  // Disc number of a film on several discs, e.g. "Titanic Disc 2", "Lawrence of Arabia - DVD 1",
+  // "Ben-Hur D2", "Gandhi (Disco 1 de 2)". Keep in step with FILM_DISC_RE in app.py.
+  var FILM_DISC_RE = /(?:^|[\s\-–:,(\[])(?:dis[ck]o?|dvd|cd|d)\s*0*(\d{1,2})(?=$|[\s\-–:,)\]]|\s*(?:of|de|\/)\s*\d)/i;
+
+  function parseFilmDisc(title) {
+    var t = String(title || "");
+    var m = FILM_DISC_RE.exec(t);
+    if (!m) return null;
+    var name = t.slice(0, m.index).replace(/[\s\-–:,(\[]+$/, "").trim();
+    return name ? { name: name, disc: Number(m[1]) } : null;
+  }
 
   function parseTitle(title) {
     var t = String(title || "");
@@ -169,21 +183,36 @@
   }
 
   // The season a DVD belongs to, from its edited season, its title, or (when the title says
-  // nothing) its file name / volume label; null if none. The series name is the title, minus any
-  // "S02 D1" in it. Discs matched to a TV series on TMDB are grouped by that series, so the
-  // seasons of a revival ("Will & Grace", 2017) stay apart from the original's.
+  // nothing) its file name / volume label. The series name is the title, minus any "S02 D1" in
+  // it. Discs matched to a TV series on TMDB are grouped by that series, so the seasons of a
+  // revival ("Will & Grace", 2017) stay apart from the original's.
+  // Without a season, a DVD with a disc number (edited, or "Titanic Disc 2" in its title, file
+  // name or volume label) is a film on several discs: season is null and the discs of the same
+  // film name form one group. Otherwise null.
   function seasonOf(d) {
     if (d.kind === "cd") return null;
+    var file = String(d.rel || "").replace(/^.*\//, "").replace(/\.[^.]*$/, "").replace(/[_.]+/g, " ");
+    var label = String(d.label || "").replace(/[_.]+/g, " ");
     var fromTitle = parseTitle(d.title);
-    var p = fromTitle || parseTitle(String(d.rel || "").replace(/^.*\//, "").replace(/\.[^.]*$/, "").replace(/[_.]+/g, " ")) ||
-      parseTitle(String(d.label || "").replace(/[_.]+/g, " ")) || {};
+    var p = fromTitle || parseTitle(file) || parseTitle(label) || {};
     var name = (fromTitle && fromTitle.name) || d.title;
-    var season = d.season !== null && d.season !== undefined ? d.season : p.season;
-    if (!name || season === null || season === undefined) return null;
-    var disc = d.disc !== null && d.disc !== undefined ? d.disc : p.disc;
+    var given = function (v) { return v !== null && v !== undefined; };
+    var season = given(d.season) ? d.season : p.season;
+    if (!name) return null;
+    if (!given(season)) {
+      var film = parseFilmDisc(d.title);
+      var f = film || parseFilmDisc(file) || parseFilmDisc(label) || {};
+      var disc = given(d.disc) ? d.disc : f.disc;
+      if (!given(disc)) return null;
+      name = (film && film.name) || d.title;
+      return { key: "film:" + name.toLowerCase(), name: name, season: null, disc: disc };
+    }
     var series = d.tmdb_series ? "tmdb:" + d.tmdb_series : name.toLowerCase();
-    return { key: series + "|" + season, name: name, season: season, disc: disc };
+    return { key: series + "|" + season, name: name, season: season, disc: given(d.disc) ? d.disc : p.disc };
   }
+
+  // "Friends – Season 2", or just the name of a film on several discs.
+  function groupHeading(s) { return s.season === null ? s.name : s.name + " \u2013 Season " + s.season; }
 
   function byDiscNumber(a, b) {
     var sa = seasonOf(a), sb = seasonOf(b);
@@ -336,7 +365,7 @@
     var card = document.createElement("button");
     card.type = "button";
     card.className = "card";
-    card.title = g.name + " \u00b7 Season " + g.season + " \u00b7 " + g.discs.length + " discs" +
+    card.title = groupHeading(g) + " \u00b7 " + g.discs.length + " discs" +
       (first.synopsis ? "\n\n" + first.synopsis.slice(0, 300) : "");
 
     var coverUrl = "/api/cover/" + first.id + "?v=" + first.cover_v;
@@ -362,7 +391,8 @@
     var sub = document.createElement("span");
     sub.className = "sub";
     var seen = g.discs.filter(function (d) { return d.watched; }).length;
-    sub.textContent = (first.year ? first.year + " \u00b7 " : "") + "Season " + g.season +
+    sub.textContent = (first.year ? first.year + " \u00b7 " : "") +
+      (g.season === null ? g.discs.length + " discs" : "Season " + g.season) +
       (seen && !watched ? " \u00b7 " + seen + "/" + g.discs.length + " watched" : "");
 
     card.appendChild(img);
@@ -412,7 +442,7 @@
     if (it && seCards.contains(it)) focusId = it.dataset.id;
 
     var s = seasonOf(discs[0]);
-    $("se-heading").textContent = s.name + " \u2013 Season " + s.season;
+    $("se-heading").textContent = groupHeading(s);
     var seen = discs.filter(function (d) { return d.watched; }).length;
     $("se-info").textContent = discs.length + (discs.length === 1 ? " disc" : " discs") +
       (seen ? " \u00b7 " + seen + " watched" : "");
@@ -551,6 +581,7 @@
       allDiscs = data.discs;
       knownGenres = data.genres;
       mediaDir = data.media_dir;
+      tmdbOn = !!data.tmdb;
       refreshGenreOptions(knownGenres);
       render();
       if (firstLoad) {
@@ -689,6 +720,7 @@
     $("ed-watched").checked = !!d.watched;
     $("ed-watched-label").textContent = cap(seenWord(d));
     document.querySelector(".ed-cover").classList.toggle("cd", d.kind === "cd");
+    $("ed-posters").hidden = d.kind === "cd" || !tmdbOn;
 
     buildChips();
     syncChips();
@@ -813,6 +845,174 @@
       .then(null, showError);
   });
 
+  // ------------------------------------------------------------ poster picker (TMDB)
+  var pickerEl = $("posters");
+  var pkQuery = $("pk-query");
+  var pkNote = $("pk-note");
+  var pkBody = $("pk-body");
+  var pkAll = $("pk-all");
+  var pkSearchSeq = 0;
+
+  function pickerOpen() { return !pickerEl.hidden; }
+
+  // The other discs grouped with the one being edited (same season, or same film on several discs).
+  function groupSiblings(d) {
+    var s = seasonOf(d);
+    if (!s) return [];
+    return allDiscs.filter(function (o) {
+      var so = o.id !== d.id && seasonOf(o);
+      return so && so.key === s.key;
+    });
+  }
+
+  function pickerSection(heading, items, thumbUrl) {
+    var sec = document.createElement("section");
+    var h = document.createElement("h3");
+    h.textContent = heading;
+    sec.appendChild(h);
+    var box = document.createElement("div");
+    box.className = "pk-grid";
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "pk-thumb" + (it.current ? " current" : "");
+      b.title = it.caption || "Use this poster";
+      var img = document.createElement("img");
+      img.alt = it.caption || "Poster";
+      img.loading = "lazy";
+      img.src = thumbUrl + it.poster_path;
+      b.appendChild(img);
+      if (it.caption) {
+        var c = document.createElement("span");
+        c.className = "pk-caption";
+        c.textContent = it.caption;
+        b.appendChild(c);
+      }
+      b.addEventListener("click", function () { choosePoster(it); });
+      box.appendChild(b);
+    });
+    sec.appendChild(box);
+    return sec;
+  }
+
+  function searchPosters() {
+    var d = editing;
+    if (!d) return;
+    var seq = ++pkSearchSeq;
+    pkBody.textContent = "";
+    pkNote.className = "muted small";
+    pkNote.textContent = "Searching\u2026";
+    pkNote.hidden = false;
+    var q = pkQuery.value.trim();
+    api("/api/disc/" + d.id + "/posters" + (q ? "?query=" + encodeURIComponent(q) : ""))
+      .then(function (res) {
+        if (seq !== pkSearchSeq || editing !== d) return;
+        if (!q) pkQuery.placeholder = res.query || "";
+        var cur = res.current;
+        if (cur && cur.posters.length) {
+          var label = (cur.title || "Current match") + (cur.year ? " (" + cur.year + ")" : "") +
+            (cur.season !== null && cur.season !== undefined ? " \u2013 Season " + cur.season : "");
+          pkBody.appendChild(pickerSection("Posters of " + label, cur.posters.map(function (p) {
+            return { poster_path: p, tmdb_kind: cur.tmdb_kind, tmdb_id: cur.tmdb_id, current: p === cur.poster_path };
+          }), res.thumb_url));
+        }
+        var others = res.matches.filter(function (m) {
+          return !cur || m.tmdb_kind !== cur.tmdb_kind || m.tmdb_id !== cur.tmdb_id;
+        });
+        if (others.length) {
+          pkBody.appendChild(pickerSection(cur ? "Other titles found" : "Titles found", others.map(function (m) {
+            return {
+              poster_path: m.poster_path, tmdb_kind: m.tmdb_kind, tmdb_id: m.tmdb_id,
+              caption: m.title + (m.year ? " (" + m.year + ")" : "") + (m.tmdb_kind === "tv" ? " \u00b7 series" : "")
+            };
+          }), res.thumb_url));
+        }
+        var notes = [];
+        if (!pkBody.childNodes.length) notes.push("No posters found. Try another name, e.g. the film alone or \u201cName (1997)\u201d.");
+        else notes.push("Pick a poster. One from another title also takes that title\u2019s details.");
+        if (res.covered) notes.push("This disc has its own cover, which is still shown first: remove it in the editor to see the poster.");
+        pkNote.textContent = notes.join(" ");
+        var first = pkBody.querySelector(".pk-thumb.current") || pkBody.querySelector(".pk-thumb");
+        if (first && document.activeElement !== pkQuery) first.focus();
+      })
+      .then(null, function (err) {
+        if (seq !== pkSearchSeq) return;
+        pkNote.className = "error";
+        pkNote.textContent = err && err.message ? err.message : "Search failed.";
+      });
+  }
+
+  function openPicker() {
+    var d = editing;
+    if (!d) return;
+    var n = groupSiblings(d).length;
+    $("pk-heading").textContent = "Choose a poster: " + d.title;
+    pkAll.checked = n > 0;
+    $("pk-all-row").hidden = n === 0;
+    $("pk-all-label").textContent = "Also use it for the " + (n === 1 ? "other disc" : n + " other discs") + " of this " +
+      (seasonOf(d).season === null ? "film" : "season");
+    pkQuery.value = $("ed-query").value.trim();
+    pkQuery.placeholder = "";
+    pickerEl.hidden = false;
+    pickerEl.scrollTop = 0;
+    searchPosters();
+  }
+
+  function closePicker() {
+    pkSearchSeq++;
+    pickerEl.hidden = true;
+    pkBody.textContent = "";
+    $("ed-posters").focus();
+  }
+
+  function choosePoster(it) {
+    var d = editing;
+    if (!d) return;
+    var targets = [d].concat(pkAll.checked && !$("pk-all-row").hidden ? groupSiblings(d) : []);
+    var body = { poster_path: it.poster_path, tmdb_kind: it.tmdb_kind, tmdb_id: it.tmdb_id };
+    pkNote.className = "muted small";
+    pkNote.textContent = "Saving the poster\u2026";
+    Array.prototype.forEach.call(pkBody.querySelectorAll("button"), function (b) { b.disabled = true; });
+    var covered = false;
+    var chain = Promise.resolve();
+    targets.forEach(function (t) {
+      chain = chain.then(function () {
+        return api("/api/disc/" + t.id + "/poster", jsonOpts("POST", body)).then(function (res) { covered = covered || (t === d && res.covered); });
+      });
+    });
+    chain.then(function () {
+      return load().then(function () {
+        var fresh = findDisc(d.id);
+        if (fresh && editing === d) {
+          editing = fresh;
+          setCoverPreview();
+          var a = fresh.auto || {};
+          $("ed-year").placeholder = a.year || "";
+          $("ed-genres").placeholder = (a.genres || []).join(", ");
+          $("ed-synopsis").placeholder = a.synopsis || "";
+          var note = $("ed-lookup-note");
+          note.textContent = covered
+            ? "Poster saved, but this disc\u2019s own cover is still shown first. Remove it to see the poster."
+            : "Poster saved.";
+          note.hidden = false;
+        }
+        closePicker();
+      });
+    }).then(null, function (err) {
+      pkNote.className = "error";
+      pkNote.textContent = err && err.message ? err.message : "Could not save the poster.";
+      Array.prototype.forEach.call(pkBody.querySelectorAll("button"), function (b) { b.disabled = false; });
+    });
+  }
+
+  $("ed-posters").addEventListener("click", openPicker);
+  $("pk-close").addEventListener("click", closePicker);
+  $("pk-search").addEventListener("click", searchPosters);
+  pkQuery.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); searchPosters(); }
+  });
+  pickerEl.addEventListener("mousedown", function (e) { if (e.target === pickerEl) closePicker(); });
+
   // ------------------------------------------------------------ keyboard (TV remote)
   function move(key) {
     var root = seasonOpen() ? seCards : grid;
@@ -849,6 +1049,10 @@
   }
 
   document.addEventListener("keydown", function (e) {
+    if (pickerOpen()) {
+      if (e.key === "Escape") { e.preventDefault(); closePicker(); }
+      return;
+    }
     if (editorOpen()) {
       if (e.key === "Escape") { e.preventDefault(); closeEditor(); }
       return;
