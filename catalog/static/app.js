@@ -946,11 +946,12 @@
     var d = editing;
     if (!d) return;
     var n = groupSiblings(d).length;
+    var s = seasonOf(d);  // null for a disc that is in no group
     $("pk-heading").textContent = "Choose a poster: " + d.title;
     pkAll.checked = n > 0;
     $("pk-all-row").hidden = n === 0;
-    $("pk-all-label").textContent = "Also use it for the " + (n === 1 ? "other disc" : n + " other discs") + " of this " +
-      (seasonOf(d).season === null ? "film" : "season");
+    $("pk-all-label").textContent = n === 0 ? "" : "Also use it for the " + (n === 1 ? "other disc" : n + " other discs") +
+      " of this " + (s.season === null ? "film" : "season");
     pkQuery.value = $("ed-query").value.trim();
     pkQuery.placeholder = "";
     pickerEl.hidden = false;
