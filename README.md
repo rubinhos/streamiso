@@ -269,7 +269,7 @@ Test in a desktop browser first, then on the TV.
 | `NEKO_PUBLIC_URL` | empty | Player URL if it sits behind a reverse proxy |
 | `CORS_ORIGIN` | empty (off) | Origins allowed to call the API from another app, e.g. a TV app (`*` or a comma list). See [`docs/API.md`](docs/API.md) |
 | `TMDB_API_KEY` | empty | Enables automatic covers, synopses and genres |
-| `TMDB_LANGUAGE` | `en-US` | Language of TMDB results (e.g. `pt-BR`, `es-ES`) |
+| `TMDB_LANGUAGE` | `en-US` | Language of TMDB results (e.g. `pt-BR`, `es-ES`). A title is found by its name in any language; its synopsis comes in this language, or in English when TMDB has no translation. After a change, the synopses and genres already found are fetched again in the new language (the match and the cover stay) |
 | `MUSICBRAINZ_CONTACT` | empty | E-mail or project URL sent in the User-Agent, as MusicBrainz asks |
 
 ### Stream quality

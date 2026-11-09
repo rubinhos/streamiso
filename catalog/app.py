@@ -403,6 +403,17 @@ def tmdb_lookup(title: str, year: str | None, prefer_tv: bool = False,
     return None
 
 
+FALLBACK_LANGUAGE = "en-US"
+
+
+def tmdb_overview(kind: str, tmdb_id: int, overview: str) -> str:
+    """The synopsis in TMDB_LANGUAGE, or else in English: TMDB sends an empty one for a language
+    the title has no translation in."""
+    if overview or TMDB_LANGUAGE == FALLBACK_LANGUAGE:
+        return overview
+    return tmdb_get(f"/{kind}/{tmdb_id}", language=FALLBACK_LANGUAGE).get("overview") or ""
+
+
 def _store_meta(disc_id: str, meta: dict) -> None:
     META_DIR.mkdir(parents=True, exist_ok=True)
     (META_DIR / f"{disc_id}.json").write_text(json.dumps(meta, ensure_ascii=False), "utf-8")
@@ -435,6 +446,10 @@ def lookup_dvd(disc: dict, query: str | None = None) -> bool:
     if not disc["user_cover"]:
         download_poster(disc, poster)
     meta = dict(hit, poster_path=poster)
+    meta["overview"] = tmdb_overview(hit["tmdb_kind"], hit["tmdb_id"], hit["overview"])
+    meta["language"] = TMDB_LANGUAGE  # the details are fetched again when it changes (see enrich_all)
+    # found by the whole name searched for, not by a shorter part of it: the TMDB title can replace it
+    meta["whole"] = not is_part_of(hit["matched"], terms["title"])
     meta["season"] = season  # the season whose posters the poster picker shows first
     meta["season_checked"] = terms["disc_season"]  # redone when the season changes (see enrich_all)
     meta["searched"] = terms["auto_title"]
@@ -551,7 +566,8 @@ def tmdb_details(kind: str, tmdb_id: int) -> dict:
     return {
         "tmdb_kind": kind,
         "tmdb_id": tmdb_id,
-        "overview": r.get("overview", ""),
+        "overview": tmdb_overview(kind, tmdb_id, r.get("overview") or ""),
+        "language": TMDB_LANGUAGE,
         "tmdb_title": r.get("title") or r.get("name") or "",
         "tmdb_year": (r.get("release_date") or r.get("first_air_date") or "")[:4],
         "rating": r.get("vote_average"),
@@ -580,6 +596,13 @@ def lookup_cd(disc: dict, query: str | None = None) -> bool:
     return True
 
 
+def refresh_details(disc_id: str, meta: dict) -> None:
+    """Fetch the synopsis, genres, title and rating of the disc's TMDB match again, in TMDB_LANGUAGE."""
+    details = tmdb_details(meta["tmdb_kind"], meta["tmdb_id"])
+    details.pop("tmdb_year", None)  # the year stays as matched
+    _store_meta(disc_id, dict(meta, **details))
+
+
 def enrich_all() -> None:
     """Look up covers/metadata for discs not looked up yet (background thread)."""
     if not _enrich_lock.acquire(blocking=False):
@@ -602,6 +625,15 @@ def enrich_all() -> None:
                              old.get("season_checked") == disc_season(disc, rec)[1] and
                              not (old.get("miss") and
                                   old.get("searched") != search_terms(disc, rec=rec)["auto_title"])):
+                    # Details fetched in another language (or before the language was kept) are
+                    # fetched again in TMDB_LANGUAGE, keeping the match and the poster.
+                    if not is_cd and old.get("tmdb_id") and old.get("language") != TMDB_LANGUAGE:
+                        try:
+                            refresh_details(disc["id"], old)
+                        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+                            app.logger.warning("Details failed for %r: %s", disc["title"], exc)
+                            time.sleep(2)
+                        time.sleep(0.3)
                     continue
             try:
                 (lookup_cd if is_cd else lookup_dvd)(disc)
@@ -747,6 +779,34 @@ def cover_version(disc: dict) -> int:
         return 0
 
 
+def is_part_of(query: str, name: str) -> bool:
+    """Whether query is only a part of name, as the shorter searches of title_variants are ("Show
+    Name" for "Show Name Special Episode"). A year in the name does not count."""
+    def words(t: str) -> set[str]:
+        return {w for w in _words(t) if not re.fullmatch(r"(?:19|20)\d{2}", w)}
+    return words(query) < words(name)
+
+
+def localized_title(d: dict, meta: dict) -> str:
+    """The disc's title with the name of its TMDB match, in TMDB_LANGUAGE, in place of the name in
+    the file ("Now And Then" becomes "Now and Then: Eternamente Amigas" in pt-BR), keeping any
+    "S01 D2" or "Disc 2" after it. A match found by only a part of a long name keeps the file's."""
+    title, tmdb_title = d["title"], meta.get("tmdb_title")
+    if not tmdb_title or d.get("kind") == "cd":
+        return title
+    parsed = parse_season(title) or parse_film_disc(title)
+    name = parsed[0] if parsed else title
+    whole = meta.get("whole")
+    if whole is None:  # looked up before "whole" was kept: a search typed by hand counts as whole
+        whole = not is_part_of(meta.get("matched") or "", name)
+    return tmdb_title + title[len(name):] if whole else title
+
+
+def shown_title(d: dict) -> str:
+    """The title the catalog shows: the one edited by hand, else the localized one."""
+    return load_library().get(d["fp"], {}).get("title") or localized_title(d, read_meta(d["id"]))
+
+
 def disc_view(d: dict, lib: dict) -> dict:
     """A disc as the UI sees it: user edits layered over the automatic values."""
     meta = read_meta(d["id"])
@@ -758,7 +818,7 @@ def disc_view(d: dict, lib: dict) -> dict:
     else:
         year_auto = None
     auto = {
-        "title": d["title"],
+        "title": localized_title(d, meta),
         "year": year_auto,
         "genres": d.get("genres_auto") or meta.get("genres", []),
         "synopsis": meta.get("overview", ""),
@@ -968,7 +1028,7 @@ def api_cover(disc_id: str):
         return send_file(cached, mimetype="image/jpeg", max_age=86400)
     ov = load_library().get(disc["fp"], {})
     return Response(
-        placeholder_svg(ov.get("title") or disc["title"], ov.get("year") or disc["year"],
+        placeholder_svg(ov.get("title") or localized_title(disc, read_meta(disc_id)), ov.get("year") or disc["year"],
                         square=disc.get("kind") == "cd"),
         mimetype="image/svg+xml",
         headers={"Cache-Control": "no-cache"},
@@ -1128,6 +1188,7 @@ def api_poster_set(disc_id: str):
             meta = tmdb_details(kind, tmdb_id)
             meta["season"] = terms["disc_season"] if kind == "tv" else None
             meta["matched"] = "(chosen by hand)"
+            meta["whole"] = True
         if not download_poster(disc, path):
             return jsonify({"error": "TMDB could not send that poster"}), 502
     except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
@@ -1186,7 +1247,7 @@ def api_play(disc_id: str):
     _pending.clear()
     _pending.update(state=disc["state"], wait=True, resume=resume)
     write_state(disc["state"])
-    title = load_library().get(disc["fp"], {}).get("title") or disc["title"]
+    title = shown_title(disc)
     return jsonify({"player_url": "/player", "title": title, "kind": disc.get("kind", "dvd")})
 
 
@@ -1226,7 +1287,7 @@ def api_player():
     disc = playing_disc()
     out = {"url": neko_url(), "title": None, "id": None, "kind": "dvd"}
     if disc:
-        out["title"] = load_library().get(disc["fp"], {}).get("title") or disc["title"]
+        out["title"] = shown_title(disc)
         out["id"] = disc["id"]
         out["kind"] = disc.get("kind", "dvd")
         pend = _pending.get("resume") if _pending.get("state") == disc["state"] else None
