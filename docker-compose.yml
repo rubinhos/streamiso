@@ -11,12 +11,14 @@ services:
       - "${NEKO_PORT:-8081}:8080"
       - "52000-52100:52000-52100/udp"
     environment:
-      # Stream quality, set in .env. VLC draws the disc on this screen and Neko encodes it live (VP8).
-      NEKO_DESKTOP_SCREEN: "${STREAM_RESOLUTION:-1280x720}@${STREAM_FPS:-30}"
-      NEKO_CAPTURE_VIDEO_CODEC: "vp8"
+      # Stream quality, set in .env. VLC draws the disc on this screen and Neko encodes it live in H.264,
+      # which TVs and browsers decode in hardware (docker-compose.vp8.yml switches to VP8, see the README).
+      NEKO_DESKTOP_SCREEN: "${STREAM_RESOLUTION:-1024x576}@${STREAM_FPS:-30}"
+      NEKO_CAPTURE_VIDEO_CODEC: "h264"
       NEKO_CAPTURE_VIDEO_IDS: "main"
-      # Neko 3's default VP8 pipeline, with the frame rate and bit rate (kbit/s) taken from .env.
-      NEKO_CAPTURE_VIDEO_PIPELINES: '{"main":{"fps":${STREAM_FPS:-30},"gst_encoder":"vp8enc","gst_params":{"target-bitrate":"round(${STREAM_BITRATE:-4000} * 1000)","cpu-used":"4","end-usage":"cbr","threads":"4","deadline":"1","undershoot":"95","buffer-size":"12288","buffer-initial-size":"6144","buffer-optimal-size":"9216","keyframe-max-dist":"${STREAM_FPS:-30}","min-quantizer":"4","max-quantizer":"20"}}}'
+      # x264 tuned for live streaming, with the frame rate and bit rate (kbit/s) taken from .env. A key frame
+      # every second repairs a lost packet quickly; constrained baseline is what every WebRTC client decodes.
+      NEKO_CAPTURE_VIDEO_PIPELINES: '{"main":{"fps":${STREAM_FPS:-30},"gst_prefix":"! video/x-raw,format=I420","gst_encoder":"x264enc","gst_params":{"threads":"4","bitrate":"${STREAM_BITRATE:-4000}","key-int-max":"${STREAM_FPS:-30}","byte-stream":"true","tune":"zerolatency","speed-preset":"veryfast"},"gst_suffix":"! video/x-h264,stream-format=byte-stream,profile=constrained-baseline"}}'
       DVD_DEINTERLACE: "${DVD_DEINTERLACE:-yadif}"
       DVD_MENU_LANGUAGE: "${DVD_MENU_LANGUAGE:-}"
       DVD_AUDIO_LANGUAGE: "${DVD_AUDIO_LANGUAGE:-}"

@@ -274,17 +274,29 @@ Test in a desktop browser first, then on the TV.
 
 ### Stream quality
 
-VLC plays the disc full screen on the Neko container's virtual screen, and Neko encodes that screen live as VP8 for
+VLC plays the disc full screen on the Neko container's virtual screen, and Neko encodes that screen live as H.264 for
 WebRTC. So the picture you see depends on these `.env` settings, not on VLC:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `STREAM_RESOLUTION` | `1280x720` | Size of the screen VLC draws on. A DVD is only 720x480 (NTSC) or 720x576 (PAL), so `1920x1080` adds no detail: it scales the picture up on the server instead of on the TV, and costs more CPU |
+| `STREAM_RESOLUTION` | `1024x576` | Size of the screen VLC draws on. `1024x576` is 16:9 at the height of a DVD (720x480 NTSC, 720x576 PAL), so it keeps all the disc's detail. A bigger screen adds none: it scales the picture up on the server instead of on the TV, costs more CPU and spreads the same bit rate over more pixels |
 | `STREAM_FPS` | `30` | Frames per second. `30` suits NTSC discs, `25` suits PAL discs |
 | `STREAM_BITRATE` | `4000` | Video bit rate in kbit/s. Raise it if fast scenes show blocks or blur. Neko's own default is about 2000 |
 | `DVD_DEINTERLACE` | `yadif` | How VLC removes the combing of interlaced DVDs: `yadif`, `yadif2x` (smoother, twice the frames, more CPU), `blend`, `bob`, or `off`. Discs flagged as progressive are left alone |
 
 Apply changes with `docker compose up -d`, which recreates the player container (an open disc is closed).
+
+**Codec.** H.264 is decoded in hardware by TVs, phones and browsers, and costs the server less CPU than VP8 for the same
+picture. With a DVD playing on an 8-thread laptop, the Neko container used about 1.8 cores with VP8 at 1280x720, 1.3
+with VP8 at 1024x576, and 1.1 with H.264 at 1024x576. If a TV or browser shows a black picture with sound, its WebRTC
+has no H.264: switch to VP8 by adding this line to `.env` and running `docker compose up -d`:
+
+```ini
+COMPOSE_FILE=docker-compose.yml;docker-compose.vp8.yml
+```
+
+(With `:` instead of `;` when Docker runs on Linux or macOS.) [`docker-compose.vp8.yml`](docker-compose.vp8.yml) only
+changes the codec and its encoder settings; the other stream settings still apply.
 
 ### DVD language
 
