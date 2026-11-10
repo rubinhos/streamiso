@@ -32,6 +32,7 @@ from a `file://` URL sends the origin `null`. Only paths under `/api/` get the C
 {
   "discs": [ { "...": "see below" } ],
   "genres": ["Animation", "Comedy"],
+  "genre_aliases": { "Documentary": "Documentário" },
   "media_dir": "/media/dvds and /media/cds",
   "tmdb": true,
   "playing": "3dca5f54c298"
@@ -39,6 +40,13 @@ from a `file://` URL sends the origin `null`. Only paths under `/api/` get the C
 ```
 
 `playing` is the id of the disc that is open right now, or `null`.
+
+A disc's `genres` (and `auto.genres`) are tags in `TMDB_LANGUAGE`: a genre in English (typed in the editor, or one TMDB
+does not translate, such as its series genre "Kids") is named in that language, TMDB's series genres that join two
+("Sci-Fi & Fantasy") are split in two, and each tag appears once. `custom.genres` stays as it was typed. `genres` at
+the top lists every tag in use. `genre_aliases` maps every English genre name the server knows to its tag, so a client
+can name its own English genres (such as the editor's suggestions) the same way. With `TMDB_LANGUAGE` set to `en-US`,
+it is empty.
 
 A disc:
 

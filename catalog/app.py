@@ -336,6 +336,71 @@ def tmdb_genre_map(kind: str) -> dict[int, str]:
     return _genre_cache[kind]
 
 
+# Genres TMDB leaves in English in these languages (its pt-BR TV list says "Kids"), plus "Concert",
+# an editor suggestion TMDB does not have, and "Politics" (see COMBINED_GENRES), named for the genre
+# tags. A genre TMDB translates is named from its own lists (see genre_aliases).
+GENRE_NAMES = {
+    "pt": {"Kids": "Infantil", "News": "Notícias", "Soap": "Novela", "Talk": "Talk Show",
+           "Concert": "Concerto", "Politics": "Política"},
+}
+# TMDB's series genres that join two genres. A disc's tags list them apart, so a series is found
+# under "Science Fiction" and "Fantasy" as a film is, and no tag repeats part of another.
+COMBINED_GENRES = {
+    "Action & Adventure": ["Action", "Adventure"],
+    "Sci-Fi & Fantasy": ["Science Fiction", "Fantasy"],
+    "War & Politics": ["War", "Politics"],
+}
+_genre_aliases: dict[str, str] = {}
+_genre_aliases_loaded = False
+
+
+def load_genre_aliases() -> None:
+    """The English name of each TMDB genre and its name in TMDB_LANGUAGE ("Documentary" and
+    "Documentário"), so the genre tags show one of them. Fetched once, in the background."""
+    global _genre_aliases_loaded
+    if _genre_aliases_loaded or not TMDB_API_KEY or TMDB_LANGUAGE == FALLBACK_LANGUAGE:
+        return
+    aliases = {}
+    for kind in ("movie", "tv"):
+        local = tmdb_genre_map(kind)
+        for g in tmdb_get(f"/genre/{kind}/list", language=FALLBACK_LANGUAGE).get("genres", []):
+            name = local.get(g["id"])
+            if name and name != g["name"]:
+                aliases[g["name"]] = name
+    _genre_aliases.update(aliases)
+    _genre_aliases_loaded = True
+
+
+def genre_aliases() -> dict[str, str]:
+    """English genre name -> its name in TMDB_LANGUAGE, for the genre tags. Empty in English."""
+    if TMDB_LANGUAGE == FALLBACK_LANGUAGE:
+        return {}
+    out = dict(GENRE_NAMES.get(TMDB_LANGUAGE.split("-")[0], {}))
+    out.update(_genre_aliases)
+    return out
+
+
+def genre_tags(genres, aliases: dict[str, str] | None = None) -> list[str]:
+    """A disc's genres as tags: in TMDB_LANGUAGE, the series genres that join two split in two, and
+    each tag once ("Comedy" and "Comédia" are one)."""
+    if aliases is None:
+        aliases = genre_aliases()
+    combined = dict(COMBINED_GENRES)
+    for name, parts in COMBINED_GENRES.items():
+        if name in aliases:  # a language whose TMDB names the joined genre
+            combined[aliases[name]] = parts
+    out, seen = [], set()
+    for g in genres or []:
+        if not isinstance(g, str):
+            continue
+        for part in combined.get(g, [g]):
+            tag = aliases.get(part, part)
+            if tag.casefold() not in seen:
+                seen.add(tag.casefold())
+                out.append(tag)
+    return out
+
+
 def _words(text: str) -> list[str]:
     return re.sub(r"[^\w]+", " ", text.lower()).split()
 
@@ -608,6 +673,10 @@ def enrich_all() -> None:
     if not _enrich_lock.acquire(blocking=False):
         return
     try:
+        try:
+            load_genre_aliases()
+        except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+            app.logger.warning("Genre names failed: %s", exc)  # tried again on the next scan
         lib = load_library()
         for disc in list(_catalog.values()):
             meta_path = META_DIR / f"{disc['id']}.json"
@@ -820,7 +889,7 @@ def disc_view(d: dict, lib: dict) -> dict:
     auto = {
         "title": localized_title(d, meta),
         "year": year_auto,
-        "genres": d.get("genres_auto") or meta.get("genres", []),
+        "genres": genre_tags(d.get("genres_auto") or meta.get("genres", [])),
         "synopsis": meta.get("overview", ""),
     }
     return {
@@ -832,7 +901,7 @@ def disc_view(d: dict, lib: dict) -> dict:
         "title": ov.get("title") or auto["title"],
         "sort_title": ov.get("sort_title") or ov.get("title") or auto["title"],
         "year": ov["year"] if ov.get("year") is not None else auto["year"],
-        "genres": ov.get("genres") or auto["genres"],
+        "genres": genre_tags(ov.get("genres")) or auto["genres"],
         "synopsis": ov.get("synopsis") or auto["synopsis"],
         "watched": bool(ov.get("watched")),
         "cover_fill": ov.get("cover_fill") is not False,  # filling is the default
@@ -1004,10 +1073,14 @@ def api_discs():
     # by sort title, the order of clients that do not sort themselves (the TV app)
     discs = sorted((disc_view(d, lib) for d in catalog.values()),
                    key=lambda v: (v["sort_title"].casefold(), v["title"].casefold()))
+    # The discs' genres are already tags (see genre_tags). genre_aliases lets a client name its own
+    # English genres (the editor's suggestions, or what was typed) the same way.
+    aliases = genre_aliases()
     return jsonify(
         {
             "discs": discs,
             "genres": sorted({g for d in discs for g in d["genres"]}, key=str.casefold),
+            "genre_aliases": dict(sorted(aliases.items())),
             "media_dir": str(DVD_DIR) if DVD_DIR == CD_DIR else f"{DVD_DIR} and {CD_DIR}",
             "tmdb": bool(TMDB_API_KEY),
             "playing": next((d["id"] for d in catalog.values() if d["state"] == playing_path), None),

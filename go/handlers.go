@@ -208,10 +208,11 @@ func discView(d *Disc, lib map[string]any) map[string]any {
 	if len(d.GenresAuto) > 0 {
 		genres = d.GenresAuto
 	}
+	aliases := genreAliases()
 	auto := map[string]any{
 		"title":    localizedTitle(d, meta),
 		"year":     yearAuto(d, meta),
-		"genres":   genres,
+		"genres":   genreTags(genres, aliases),
 		"synopsis": getOr(meta, "overview", ""),
 	}
 	year := auto["year"]
@@ -239,7 +240,7 @@ func discView(d *Disc, lib map[string]any) map[string]any {
 		"title":       firstTruthy(auto["title"], ov["title"]),
 		"sort_title":  firstTruthy(auto["title"], ov["sort_title"], ov["title"]),
 		"year":        year,
-		"genres":      firstTruthy(auto["genres"], ov["genres"]),
+		"genres":      firstTruthy(auto["genres"], genreTags(ov["genres"], aliases)),
 		"synopsis":    firstTruthy(auto["synopsis"], ov["synopsis"]),
 		"watched":     truthy(ov["watched"]),
 		"cover_fill":  coverFill,
@@ -723,15 +724,13 @@ func handleDiscs(w http.ResponseWriter, r *http.Request) {
 		}
 		return casefold(pyStr(discs[i]["title"])) < casefold(pyStr(discs[j]["title"]))
 	})
+	// The discs' genres are already tags (see genreTags). genre_aliases lets a client name its own
+	// English genres (the editor's suggestions, or what was typed) the same way.
+	aliases := genreAliases()
 	genreSet := map[string]bool{}
 	genres := []string{}
 	for _, d := range discs {
 		list, _ := d["genres"].([]any)
-		if gs, ok := d["genres"].([]string); ok {
-			for _, g := range gs {
-				list = append(list, g)
-			}
-		}
 		for _, g := range list {
 			s := pyStr(g)
 			if !genreSet[s] {
@@ -752,7 +751,7 @@ func handleDiscs(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	writeJSON(w, 200, map[string]any{"discs": discs, "genres": genres, "media_dir": mediaDir,
+	writeJSON(w, 200, map[string]any{"discs": discs, "genres": genres, "genre_aliases": aliases, "media_dir": mediaDir,
 		"tmdb": cfg.TMDBKey != "", "playing": playing})
 }
 

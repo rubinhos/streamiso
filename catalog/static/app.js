@@ -128,13 +128,27 @@
     }
   };
 
+  // The tag a genre is listed under: its name in the app's language ("Documentary" is "Documentário").
+  var genreAliases = {};
+  function genreTag(g) { return Object.prototype.hasOwnProperty.call(genreAliases, g) ? genreAliases[g] : g; }
+  // A disc's genres as tags, without repeats ("Comedy" and "Comédia" are one tag).
+  function discTags(d) {
+    var seen = {};
+    return d.genres.map(genreTag).filter(function (g) {
+      var k = g.toLowerCase();
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+  }
+
   function visibleList() {
     var q = filterEl.value.trim().toLowerCase();
     var list = allDiscs.filter(function (d) {
-      if (prefs.genre && d.genres.indexOf(prefs.genre) === -1) return false;
+      if (prefs.genre && discTags(d).indexOf(prefs.genre) === -1) return false;
       if (prefs.kind && d.kind !== prefs.kind) return false;
       if (q) {
-        var hay = (d.title + " " + (d.sort_title || "") + " " + (d.artist || "") + " " + d.genres.join(" ")).toLowerCase();
+        var hay = (d.title + " " + (d.sort_title || "") + " " + (d.artist || "") + " " + d.genres.concat(discTags(d)).join(" ")).toLowerCase();
         if (hay.indexOf(q) === -1) return false;
       }
       return true;
@@ -293,7 +307,7 @@
     if (d.genres.length) {
       var g = document.createElement("span");
       g.className = "genres";
-      g.textContent = d.genres.slice(0, 3).join(" · ");
+      g.textContent = discTags(d).slice(0, 3).join(" · ");
       card.appendChild(g);
     }
     if (d.resume) {
@@ -416,7 +430,7 @@
     if (first.genres.length) {
       var gn = document.createElement("span");
       gn.className = "genres";
-      gn.textContent = first.genres.slice(0, 3).join(" \u00b7 ");
+      gn.textContent = discTags(first).slice(0, 3).join(" \u00b7 ");
       card.appendChild(gn);
     }
     if (resumed) {
@@ -646,6 +660,7 @@
     return api("/api/discs").then(function (data) {
       allDiscs = data.discs;
       knownGenres = data.genres;
+      genreAliases = data.genre_aliases || {};
       mediaDir = data.media_dir;
       tmdbOn = !!data.tmdb;
       refreshGenreOptions(knownGenres);
@@ -718,8 +733,9 @@
     return $("ed-genres").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
   }
 
+  // A chip is named by its tag, so it is on for the same genre typed in English ("Comedy" for "Comédia").
   function syncChips() {
-    var cur = genreList().map(function (g) { return g.toLowerCase(); });
+    var cur = genreList().map(function (g) { return genreTag(g).toLowerCase(); });
     var chips = $("ed-chips").querySelectorAll(".chip");
     for (var i = 0; i < chips.length; i++) {
       var on = cur.indexOf(chips[i].textContent.toLowerCase()) !== -1;
@@ -732,7 +748,7 @@
     box.textContent = "";
     var seen = {};
     var names = [];
-    DEFAULT_GENRES.concat(knownGenres).forEach(function (g) {
+    DEFAULT_GENRES.map(genreTag).concat(knownGenres).forEach(function (g) {
       var k = g.toLowerCase();
       if (!seen[k]) { seen[k] = true; names.push(g); }
     });
@@ -745,7 +761,7 @@
       b.addEventListener("click", function () {
         var list = genreList();
         var idx = -1;
-        for (var i = 0; i < list.length; i++) if (list[i].toLowerCase() === g.toLowerCase()) idx = i;
+        for (var i = 0; i < list.length; i++) if (genreTag(list[i]).toLowerCase() === g.toLowerCase()) idx = i;
         if (idx === -1) list.push(g); else list.splice(idx, 1);
         $("ed-genres").value = list.join(", ");
         syncChips();

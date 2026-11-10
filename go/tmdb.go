@@ -81,6 +81,128 @@ func tmdbGenreMap(kind string) (map[string]string, error) {
 	return m, nil
 }
 
+// Genres TMDB leaves in English in these languages (its pt-BR TV list says "Kids"), plus "Concert",
+// an editor suggestion TMDB does not have, and "Politics" (see combinedGenres), named for the genre
+// tags. A genre TMDB translates is named from its own lists (see loadGenreAliases).
+var genreNames = map[string]map[string]string{
+	"pt": {"Kids": "Infantil", "News": "Notícias", "Soap": "Novela", "Talk": "Talk Show",
+		"Concert": "Concerto", "Politics": "Política"},
+}
+
+// TMDB's series genres that join two genres. A disc's tags list them apart, so a series is found
+// under "Science Fiction" and "Fantasy" as a film is, and no tag repeats part of another.
+var combinedGenres = map[string][]string{
+	"Action & Adventure": {"Action", "Adventure"},
+	"Sci-Fi & Fantasy":   {"Science Fiction", "Fantasy"},
+	"War & Politics":     {"War", "Politics"},
+}
+
+// genreTags is a disc's genres as tags: in TMDB_LANGUAGE, the series genres that join two split in
+// two, and each tag once ("Comedy" and "Comédia" are one). Like genre_tags in the Python catalog.
+func genreTags(genres any, aliases map[string]string) []any {
+	combined := map[string][]string{}
+	for name, parts := range combinedGenres {
+		combined[name] = parts
+		if local, ok := aliases[name]; ok { // a language whose TMDB names the joined genre
+			combined[local] = parts
+		}
+	}
+	var list []string
+	switch gs := genres.(type) {
+	case []string:
+		list = gs
+	case []any:
+		for _, g := range gs {
+			if s, ok := g.(string); ok {
+				list = append(list, s)
+			}
+		}
+	}
+	out := []any{}
+	seen := map[string]bool{}
+	for _, g := range list {
+		parts, ok := combined[g]
+		if !ok {
+			parts = []string{g}
+		}
+		for _, part := range parts {
+			tag := part
+			if a, ok := aliases[part]; ok {
+				tag = a
+			}
+			if !seen[casefold(tag)] {
+				seen[casefold(tag)] = true
+				out = append(out, tag)
+			}
+		}
+	}
+	return out
+}
+
+var (
+	aliasMu      sync.Mutex
+	aliasLoaded  bool
+	genreAliasDB = map[string]string{}
+)
+
+// loadGenreAliases fetches the English name of each TMDB genre and its name in TMDB_LANGUAGE
+// ("Documentary" and "Documentário"), so the genre tags show one of them. Once, in the background.
+func loadGenreAliases() error {
+	aliasMu.Lock()
+	done := aliasLoaded
+	aliasMu.Unlock()
+	if done || cfg.TMDBKey == "" || cfg.TMDBLanguage == fallbackLanguage {
+		return nil
+	}
+	aliases := map[string]string{}
+	for _, kind := range []string{"movie", "tv"} {
+		local, err := tmdbGenreMap(kind)
+		if err != nil {
+			return err
+		}
+		data, err := tmdbGet("/genre/"+kind+"/list", lang(fallbackLanguage))
+		if err != nil {
+			return err
+		}
+		list, _ := data["genres"].([]any)
+		for _, g := range list {
+			gm, _ := g.(map[string]any)
+			id, okID := gm["id"]
+			en, okName := gm["name"]
+			if !okID || !okName {
+				return fmt.Errorf("KeyError")
+			}
+			if name, ok := local[numKey(id)]; ok && name != "" && name != pyStr(en) {
+				aliases[pyStr(en)] = name
+			}
+		}
+	}
+	aliasMu.Lock()
+	for k, v := range aliases {
+		genreAliasDB[k] = v
+	}
+	aliasLoaded = true
+	aliasMu.Unlock()
+	return nil
+}
+
+// genreAliases maps an English genre name to its name in TMDB_LANGUAGE, for the genre tags.
+func genreAliases() map[string]string {
+	if cfg.TMDBLanguage == fallbackLanguage {
+		return map[string]string{}
+	}
+	out := map[string]string{}
+	for k, v := range genreNames[strings.SplitN(cfg.TMDBLanguage, "-", 2)[0]] {
+		out[k] = v
+	}
+	aliasMu.Lock()
+	for k, v := range genreAliasDB {
+		out[k] = v
+	}
+	aliasMu.Unlock()
+	return out
+}
+
 func results(data map[string]any) []map[string]any {
 	list, _ := data["results"].([]any)
 	out := make([]map[string]any, 0, len(list))
@@ -586,6 +708,9 @@ func enrichAll() {
 		return
 	}
 	defer releaseEnrich()
+	if err := loadGenreAliases(); err != nil {
+		log.Printf("WARNING: Genre names failed: %v", err) // tried again on the next scan
+	}
 	lib := loadLibrary()
 	for _, d := range currentDiscs() {
 		isCD := d.Kind == "cd"

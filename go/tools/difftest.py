@@ -126,7 +126,9 @@ class Fake:
             return J({"releases": [{"id": "r1", "cover-art-archive": {"front": False, "artwork": False}},
                                    {"id": "r2"}]})
         if p.startswith("/genre/"):
-            return J({"genres": [{"id": 18, "name": "Drama"}, {"id": 35, "name": "Comédia"}, {"id": 10751, "name": "Família"}]})
+            en = lang == "en-US"
+            return J({"genres": [{"id": 18, "name": "Drama"}, {"id": 35, "name": "Comedy" if en else "Comédia"},
+                                 {"id": 10751, "name": "Family" if en else "Família"}, {"id": 10762, "name": "Kids"}]})
         if p == "/search/movie":
             t = q["query"].lower()
             r = []
@@ -415,6 +417,9 @@ settle()
 compare("meta season change", "PUT", f"/api/disc/{f2}/meta", body={"season": 1, "disc": 3})
 settle()
 compare("discs after edits", "GET", "/api/discs")
+compare("meta genres en", "PUT", f"/api/disc/{ids['Titanic Disc 2.iso']}/meta",
+        body={"genres": ["Comedy", "Kids", "Sci-Fi & Fantasy", "Musical"]})
+compare("discs genre tags", "GET", "/api/discs")
 compare("watched on", "POST", f"/api/disc/{a1}/watched", body={"watched": True})
 compare("watched off", "POST", f"/api/disc/{a1}/watched", body={"watched": 0})
 compare("watched no body", "POST", f"/api/disc/{ids['lower.ISO']}/watched")
