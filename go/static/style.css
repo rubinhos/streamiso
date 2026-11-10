@@ -1,0 +1,422 @@
+:root {
+  --bg: #121316;
+  --panel: #1c1e23;
+  --panel-2: #262930;
+  --text: #f1efe9;
+  --muted: #9a98a0;
+  --accent: #f0b429;
+  --danger: #e5484d;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 14px;
+  padding: 18px 40px;
+  background: linear-gradient(var(--bg) 75%, transparent);
+}
+header h1 { margin: 0; line-height: 0; }
+header .logo { display: block; height: 54px; width: auto; }
+.spacer { flex: 1; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+input, button, select, textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  padding: 10px 16px;
+}
+select { padding-right: 10px; }
+button { cursor: pointer; }
+input:focus, button:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+main { padding: 8px 40px 60px; }
+/* Nothing on these pages is meant to be selected or copied (it also keeps long presses on a TV or phone
+   from selecting text); the fields you type in stay normal. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
+
+.ed-cover [hidden] { display: none; }
+.lookup { display: flex; align-items: flex-end; gap: 10px; }
+.lookup .grow { flex: 1; }
+.group + .group { margin-top: 44px; }
+.group h2 {
+  margin: 0 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.group h2 .count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--panel);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 28px 24px;
+}
+
+/* ---------- cards ---------- */
+.item { position: relative; }
+
+.card {
+  display: block;
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: inherit;
+  transition: transform .12s ease;
+}
+/* The cover is shown whole (contain). Covers that are not 2:3, such as CD-sized or
+   landscape art, get a blurred, desaturated copy of themselves behind them. */
+.card .cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--panel);
+  outline: 4px solid transparent;
+  outline-offset: 3px;
+  transition: outline-color .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.card .cover .bg {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scale(1.25);
+  filter: blur(14px) saturate(.45) brightness(.65);
+}
+.card .cover .fg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* "Fill the space" in the editor: the cover is cropped to 2:3 instead of shown whole */
+.card .cover.fill .bg { display: none; }
+.card .cover.fill .fg { object-fit: cover; }
+.card:focus, .card:hover { outline: none; transform: scale(1.04); }
+.card:focus .cover, .card:hover .cover {
+  outline-color: var(--accent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .55);
+}
+.card .title {
+  display: block;
+  margin-top: 12px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.card .sub, .card .genres {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card .genres { font-size: 13px; opacity: .8; }
+
+.item.watched .cover { opacity: .5; }
+.item .ribbon {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: none;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #111;
+  background: var(--accent);
+  border-radius: 999px;
+  pointer-events: none;
+}
+.item.watched .ribbon { display: block; }
+/* resume position: thin bar over the bottom of the cover, and a line of text */
+.card .cover .progress {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+  background: rgba(255, 255, 255, .25);
+}
+.card .cover .progress span { display: block; height: 100%; background: var(--accent); }
+.card .resume {
+  display: block; margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--accent);
+}
+/* audio CD covers are square */
+.item.cd .card .cover { aspect-ratio: 1 / 1; }
+.ed-cover.cd img { aspect-ratio: 1 / 1; }
+.card .cover .kindtag {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: #fff;
+  background: rgba(13, 15, 28, .82);
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* a season with several discs: the cover looks like a small stack of cases */
+.item.stack { padding-top: 10px; }
+.item.stack .card .cover {
+  box-shadow: 5px -5px 0 -1px #30333b, 10px -10px 0 -2px #3c3f48;
+}
+.item.stack .card:focus .cover, .item.stack .card:hover .cover {
+  box-shadow: 5px -5px 0 -1px #30333b, 10px -10px 0 -2px #3c3f48, 0 12px 32px rgba(0, 0, 0, .55);
+}
+.item.stack .ribbon, .item.stack .tools { top: 18px; }
+
+/* ---------- season (list of discs) ---------- */
+#season { z-index: 15; }  /* under the "opening" overlay and the editor */
+.season-panel { max-width: 1100px; }
+.season-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+.season-head p { margin: 4px 0 0; }
+#se-close { flex: none; width: 44px; height: 44px; padding: 0; background: var(--panel-2); }
+.season-panel .cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+
+/* ---------- poster picker ---------- */
+#posters { z-index: 40; }  /* over the editor it was opened from */
+.picker-panel { max-width: 1000px; }
+#pk-close { flex: none; width: 44px; height: 44px; padding: 0; background: var(--panel-2); }
+#pk-all-row { margin-top: 14px; }
+#pk-all-row[hidden] { display: none; }
+#pk-body h3 { margin: 22px 0 10px; font-size: 16px; }
+.pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
+.pk-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.pk-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border: 3px solid transparent;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.pk-thumb.current img { border-color: var(--muted); }
+.pk-thumb:hover img, .pk-thumb:focus img { border-color: var(--accent); }
+.pk-thumb:disabled { opacity: .5; cursor: default; }
+.pk-caption { font-size: 13px; line-height: 1.3; color: var(--muted); }
+.pk-cell { display: flex; flex-direction: column; gap: 6px; }
+.pk-more {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.pk-more:hover, .pk-more:focus { border-color: var(--accent); }
+
+.tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.item:hover .tools, .item:focus-within .tools { opacity: 1; }
+@media (hover: none) { .tools { opacity: 1; } }
+
+.tool {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(15, 15, 18, .82);
+  border: 2px solid rgba(255, 255, 255, .2);
+  border-radius: 50%;
+}
+.tool[aria-pressed="true"] { color: #111; background: var(--accent); border-color: var(--accent); }
+
+#empty { max-width: 640px; line-height: 1.5; }
+#empty code { background: var(--panel); padding: 2px 6px; border-radius: 6px; }
+
+/* ---------- opening a disc ---------- */
+#opening {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: rgba(10, 10, 12, .92);
+}
+#opening[hidden] { display: none; }
+#opening-title { font-size: 26px; font-weight: 600; margin: 18px 0 6px; }
+.spinner {
+  width: 46px; height: 46px; margin: 0 auto;
+  border: 5px solid var(--panel);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- editor ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4vh 16px;
+  overflow-y: auto;
+  background: rgba(8, 8, 10, .82);
+}
+.modal[hidden] { display: none; }
+html.modal-open, html.modal-open body { overflow: hidden; }  /* only the open window scrolls */
+
+.panel {
+  width: 100%;
+  max-width: 900px;
+  padding: 24px 28px;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+}
+.panel h2 { margin: 0 0 4px; font-size: 22px; }
+#ed-info { margin: 0 0 18px; word-break: break-all; }
+
+.panel input, .panel textarea, .panel select { background: var(--panel-2); }
+.panel label { display: block; font-size: 14px; color: var(--muted); }
+.panel label input, .panel label textarea { display: block; width: 100%; margin-top: 6px; color: var(--text); }
+.panel label + label, .ed-fields > * + * { margin-top: 14px; }
+.panel textarea { resize: vertical; }
+
+.ed-grid { display: grid; grid-template-columns: 200px 1fr; gap: 24px; }
+.ed-cover img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+.ed-cover img.fill { object-fit: cover; }
+.ed-cover img.faded { opacity: .3; }
+.panel label.fill-check { margin-top: 10px; font-size: 14px; align-items: flex-start; }
+.panel label.fill-check input { flex: none; width: 18px; height: 18px; }
+.ed-cover .btn, .ed-cover button {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.ed-cover .btn:hover, .ed-cover button:hover { border-color: var(--accent); }
+
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.row > label { flex: 0 0 110px; margin-top: 0 !important; }
+
+/* compact, so the editor fits on the screen */
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.ed-fields > .chips { margin-top: 8px; }
+.chip {
+  padding: 2px 9px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+.chip[aria-pressed="true"] { color: #111; background: var(--accent); }
+
+.panel label.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  color: var(--text);
+}
+.panel label.check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 22px; }
+.actions .primary { color: #111; background: var(--accent); font-weight: 700; }
+.actions .danger { color: var(--danger); }
+.error { margin: 14px 0 0; color: var(--danger); }
+
+#rescan, #server, #seen { display: inline-flex; align-items: center; gap: 8px; }
+#rescan svg, #server svg, #seen svg { flex: none; }
+/* "Hide watched" is a switch: on (highlighted, eye crossed out) while watched discs are hidden */
+#seen .eye-off, #seen[aria-pressed="true"] .eye { display: none; }
+#seen[aria-pressed="true"] .eye-off { display: inline; }
+#seen[aria-pressed="true"] { color: #111; background: var(--accent); }
+.group.progress h2 { color: var(--accent); }
+#server[hidden] { display: none; }
+
+@media (max-width: 700px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  /* Phone: one row with just the text filter and a refresh icon, across the full width. */
+  /* The logo keeps its own row above, so the filter and the button share the next one. */
+  header { gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+  header .brand { flex: 0 0 100%; }
+  header .logo { height: 40px; }
+  header #count, header .spacer, header select, #rescan .lbl, #server .lbl, #seen .lbl { display: none; }
+  header #filter { flex: 1; min-width: 0; width: auto; }
+  #rescan, #server, #seen { flex: none; width: 46px; height: 46px; padding: 0; justify-content: center; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px 14px; }
+  .season-panel .cards { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .pk-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+  .group + .group { margin-top: 32px; }
+  .ed-grid { grid-template-columns: 1fr; }
+  .ed-cover { max-width: 200px; }
+  .panel { padding: 18px; }
+}

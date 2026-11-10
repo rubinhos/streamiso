@@ -1,0 +1,5 @@
+testdata/
+tools/
+*.md
+*_test.go
+docker-compose*.yml

@@ -1,0 +1,72 @@
+# The Go version of the catalog (this folder), with the same player. Run it from this folder with the
+# settings of the main one:  docker compose --env-file ../.env up -d --build
+# It uses the same ports, data and state as ../docker-compose.yml, so stop that one first.
+name: streamiso-go
+
+services:
+  # DVD player (VLC with menus) streamed over WebRTC
+  neko:
+    image: ${NEKO_IMAGE:-ghcr.io/m1k1o/neko/vlc:latest}
+    container_name: streamiso-go-neko
+    restart: unless-stopped
+    shm_size: "1gb"
+    ports:
+      - "${NEKO_PORT:-8081}:8080"
+      - "52000-52100:52000-52100/udp"
+    environment:
+      # Stream quality, set in .env. VLC draws the disc on this screen and Neko encodes it live in H.264,
+      # which TVs and browsers decode in hardware (docker-compose.vp8.yml switches to VP8, see ../README.md).
+      NEKO_DESKTOP_SCREEN: "${STREAM_RESOLUTION:-1024x576}@${STREAM_FPS:-30}"
+      NEKO_CAPTURE_VIDEO_CODEC: "h264"
+      NEKO_CAPTURE_VIDEO_IDS: "main"
+      # x264 tuned for live streaming, with the frame rate and bit rate (kbit/s) taken from .env. A key frame
+      # every second repairs a lost packet quickly; constrained baseline is what every WebRTC client decodes.
+      NEKO_CAPTURE_VIDEO_PIPELINES: '{"main":{"fps":${STREAM_FPS:-30},"gst_prefix":"! video/x-raw,format=I420","gst_encoder":"x264enc","gst_params":{"threads":"4","bitrate":"${STREAM_BITRATE:-4000}","key-int-max":"${STREAM_FPS:-30}","byte-stream":"true","tune":"zerolatency","speed-preset":"veryfast"},"gst_suffix":"! video/x-h264,stream-format=byte-stream,profile=constrained-baseline"}}'
+      DVD_DEINTERLACE: "${DVD_DEINTERLACE:-yadif}"
+      DVD_MENU_LANGUAGE: "${DVD_MENU_LANGUAGE:-}"
+      DVD_AUDIO_LANGUAGE: "${DVD_AUDIO_LANGUAGE:-}"
+      DVD_SUBTITLE_LANGUAGE: "${DVD_SUBTITLE_LANGUAGE:-}"
+      NEKO_MEMBER_PROVIDER: "multiuser"
+      NEKO_MEMBER_MULTIUSER_USER_PASSWORD: "${NEKO_PASSWORD:-neko}"
+      NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD: "${NEKO_ADMIN_PASSWORD:-change-this-password}"
+      NEKO_WEBRTC_EPR: "52000-52100"
+      # whoever clicks or types on the video gets control automatically
+      NEKO_SESSION_IMPLICIT_HOSTING: "true"
+      NEKO_WEBRTC_NAT1TO1: "${SERVER_IP:?set SERVER_IP in the .env file (the server's IP on your network)}"
+      STATE_FILE: "/state/current"
+      MEDIA_PREFIX: "/media/"
+    # VLC's remote-control port (4212) is not published: only the catalog reaches it, inside this network
+    volumes:
+      - "${DVD_DIR:-${MEDIA_DIR:-../empty}}:/media/dvds:ro"
+      - "${CD_DIR:-${MEDIA_DIR:-../empty}}:/media/cds:ro"
+      - "../state:/state:ro"
+      - "../neko/vlc.conf:/etc/neko/supervisord/vlc.conf:ro"
+      - "../neko:/opt/streamiso:ro"
+
+  # Library with covers, metadata editing, and the API that drives the player
+  catalog:
+    build: .
+    container_name: streamiso-go-catalog
+    restart: unless-stopped
+    ports:
+      - "${CATALOG_PORT:-8080}:8080"
+    environment:
+      DVD_DIR: "/media/dvds"
+      CD_DIR: "/media/cds"
+      DATA_DIR: "/data"
+      STATE_FILE: "/state/current"
+      NEKO_PORT: "${NEKO_PORT:-8081}"
+      NEKO_USER: "tv"
+      NEKO_PASSWORD: "${NEKO_PASSWORD:-neko}"
+      NEKO_PUBLIC_URL: "${NEKO_PUBLIC_URL:-}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-}"
+      VLC_RC_HOST: "neko"
+      VLC_RC_PORT: "4212"
+      TMDB_API_KEY: "${TMDB_API_KEY:-}"
+      TMDB_LANGUAGE: "${TMDB_LANGUAGE:-en-US}"
+      MUSICBRAINZ_CONTACT: "${MUSICBRAINZ_CONTACT:-}"
+    volumes:
+      - "${DVD_DIR:-${MEDIA_DIR:-../empty}}:/media/dvds:ro"
+      - "${CD_DIR:-${MEDIA_DIR:-../empty}}:/media/cds:ro"
+      - "../data:/data"
+      - "../state:/state"
