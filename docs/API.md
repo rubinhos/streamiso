@@ -1,6 +1,6 @@
 # StreamISO HTTP API
 
-The catalog service (`catalog/app.py`, port `CATALOG_PORT`, 8080 by default) serves both the web page and
+The catalog service (`catalog/`, port `CATALOG_PORT`, 8080 by default) serves both the web page and
 a small JSON API. The web page uses nothing else, so any other client (a TV app, a phone remote, a script)
 can do the same. Everything below is relative to `http://<server>:8080`.
 

@@ -1,14 +1,18 @@
-FROM python:3.12-slim
+FROM golang:1.24-alpine AS build
 
+WORKDIR /src
+COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /catalog ./cmd/catalog
+
+FROM alpine:3.21
+
+# HTTPS certificates for TMDB, MusicBrainz and the Cover Art Archive
+RUN apk add --no-cache ca-certificates
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app.py vlcrc.py cdimage.py musicbrainz.py hls.py .
+COPY --from=build /catalog /app/catalog
 COPY static ./static
 
-ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
-
-# One worker: the catalog lives in memory and is shared between threads.
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "-w", "1", "--threads", "8", "app:app"]
+CMD ["/app/catalog"]

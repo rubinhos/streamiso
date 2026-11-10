@@ -180,7 +180,7 @@
   var SEASON_RE = /(?:^|[\s\-–:,(])(?:season|temporada|saison|staffel|s|t)\s*0*(\d{1,3})(?=$|[\s\-–:,)]|d(?:is[ck]o?)?\s*\d|e\d)/i;
   var DISC_RE = /(?:^|[\s\-–:,(\d])(?:dis[ck]o?|dvd|d)\s*0*(\d{1,3})(?=$|[^\d])/i;
   // Disc number of a film on several discs, e.g. "Titanic Disc 2", "Lawrence of Arabia - DVD 1",
-  // "Ben-Hur D2", "Gandhi (Disco 1 de 2)". Keep in step with FILM_DISC_RE in app.py.
+  // "Ben-Hur D2", "Gandhi (Disco 1 de 2)". Keep in step with ParseFilmDisc in catalog/internal/domain/titles.go.
   var FILM_DISC_RE = /(?:^|[\s\-–:,(\[])(?:dis[ck]o?|dvd|cd|d)\s*0*(\d{1,2})(?=$|[\s\-–:,)\]]|\s*(?:of|de|\/)\s*\d)/i;
 
   function parseFilmDisc(title) {

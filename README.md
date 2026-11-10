@@ -12,7 +12,7 @@
 
 <p align="center">
   <img alt="Docker Compose" src="https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white">
-  <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
+  <img alt="Go 1.24" src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white">
   <img alt="Vibe coded" src="https://img.shields.io/badge/vibe-coded-ff69b4">
   <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-blue">
   <img alt="Status: early prototype" src="https://img.shields.io/badge/status-early%20prototype-orange">
@@ -107,7 +107,7 @@ Browser / TV ──> catalog (port 8080) ── writes ──> ./state/current �
                    video, audio, key presses
 ```
 
-- **catalog**: a small Flask service. Scans the images, serves the library UI and API, stores your edits and resume positions, looks up covers, and tells the player which disc to open.
+- **catalog**: a small Go service (standard library only), built in hexagonal layers (see [`catalog/README.md`](catalog/README.md)). Scans the images, serves the library UI and API, stores your edits and resume positions, looks up covers, and tells the player which disc to open.
 - **neko**: the [Neko](https://github.com/m1k1o/neko) VLC image. VLC opens the ISO with `dvdnav://`, so the disc menu is interpreted on the server exactly like a hardware player. Neko captures that screen and streams it over WebRTC; key presses from your browser or remote go back to VLC.
 - **launcher** (`neko/launcher.sh`): runs inside the Neko container, watches the state file written by the catalog and (re)starts VLC for the chosen disc.
 - **player page** (`/player`): embeds the Neko stream (`cast=1`, which makes Neko hide its own buttons) and draws the control bar on top. The bar talks to the catalog, which relays commands to VLC's remote-control (rc) interface, so seeking, volume, tracks and chapters are real VLC operations.
@@ -119,20 +119,21 @@ Some of the decisions behind the code, for anyone reading or contributing:
 
 - **Do not re-implement a DVD player.** DVD menus are programs (a virtual machine on the disc). VLC with libdvdnav already runs them, so StreamISO drives a real VLC and streams its screen, instead of trying to play ISO files in the browser.
 - **Neko for the streaming.** Neko already turns a Linux desktop into a low-latency WebRTC stream with input forwarding. StreamISO uses its VLC image as is, and adds a small injected script (`neko/neko-inject.html`, applied at container start by `neko/patch-neko.sh`) that reports mouse activity, media keys and "video is ready" to the page that embeds it.
-- **VLC's rc interface as the control channel.** Everything the control bar does (state, time, seek, volume, chapters, audio and subtitle tracks, DVD menu) goes through VLC's text-based remote-control interface on an internal port. `catalog/vlcrc.py` is a small client for it.
-- **Audio CDs as one continuous raw stream.** A BIN image is played with VLC's `rawaud` demuxer as a single 44.1 kHz stereo stream, and a track is just a time offset taken from the cue sheet (`catalog/cdimage.py`). That gives gapless playback and cheap seeking.
+- **VLC's rc interface as the control channel.** Everything the control bar does (state, time, seek, volume, chapters, audio and subtitle tracks, DVD menu) goes through VLC's text-based remote-control interface on an internal port. `catalog/internal/adapters/vlc` is a small client for it.
+- **Audio CDs as one continuous raw stream.** A BIN image is played with VLC's `rawaud` demuxer as a single 44.1 kHz stereo stream, and a track is just a time offset taken from the cue sheet (`catalog/internal/adapters/media/cue.go`). That gives gapless playback and cheap seeking.
 - **Discs open paused.** The browser's audio and video connect a moment after VLC starts, so the first seconds used to be lost. VLC now starts paused and is released once the browser is connected (CDs) or the viewer clicks the big play button (DVDs).
 - **Resume by position, not by file.** Positions are saved from the player's status poll and keyed by the image fingerprint, so they survive renames. A DVD is resumed by jumping to the saved title and time through rc while still paused.
 - **Plain files, no database.** The catalog is rebuilt in memory from a folder scan. User edits live in `data/library.json`, covers and lookup results in `data/`, and the "what is playing" state in a single file shared with the launcher.
-- **No front-end build.** The UI is plain HTML, CSS and JavaScript served by Flask, with no framework and no external requests.
+- **No front-end build.** The UI is plain HTML, CSS and JavaScript served by the catalog, with no framework and no external requests.
+- **Ports and adapters.** The catalog's rules and use cases talk to files, VLC, Neko, TMDB and MusicBrainz only through interfaces, so each of those can change on its own. It was first written in Python; the Go version gives the same answers and keeps the same files (the Python code is in the history).
 
 ## Technical overview
 
-**Languages and sizes** (about 3,800 lines in total, without documentation)
+**Languages and sizes** (about 7,700 lines in total, without documentation)
 
 | Language | Where | Lines |
 |---|---|---|
-| Python 3.12 | `catalog/*.py`: Flask service, VLC client, cue parser, MusicBrainz client | ~1,560 |
+| Go 1.24 | `catalog/cmd`, `catalog/internal`: HTTP API, use cases, rules, and the adapters for files, VLC, Neko, TMDB and MusicBrainz | ~5,460 |
 | JavaScript (vanilla, no build) | `catalog/static/app.js` (library), the script inside `player.html` (player) and `neko/neko-inject.html` (bridge) | ~1,350 |
 | HTML and CSS | `catalog/static/*.html`, `style.css` | ~690 |
 | Bash | `neko/launcher.sh`, `neko/patch-neko.sh` | ~110 |
@@ -143,7 +144,7 @@ Some of the decisions behind the code, for anyone reading or contributing:
 
 | Tool | Role |
 |---|---|
-| Flask + Gunicorn | HTTP server. One worker with 8 threads, because the catalog lives in memory and is shared between threads |
+| Go's standard library | The whole catalog service: HTTP server, JSON, the clients for VLC, TMDB, MusicBrainz and Neko. No other package |
 | VLC 3 (inside Neko) | Plays the discs. `dvdnav://` for DVD menus, the `rawaud` demuxer for raw CD images, and the `rc` remote-control interface for the control bar |
 | Neko | Streams the VLC screen over WebRTC and forwards keyboard and mouse. Runs VLC under supervisord, with a lightweight window manager |
 | Docker Compose | Two services, `neko` and `catalog`, sharing a read-only media mount and a `state/` folder |
@@ -208,8 +209,7 @@ tests: `TMDB_API_URL`, `TMDB_IMAGE_URL`, `MUSICBRAINZ_URL`, `COVERART_URL`, `VLC
 |---|---|
 | Docker with Compose v2 | Runs both services |
 | [`ghcr.io/m1k1o/neko/vlc`](https://github.com/m1k1o/neko) image (Apache-2.0) | Linux desktop with VLC, streamed over WebRTC. VLC and libdvdnav come with it |
-| Python 3.12 (container image `python:3.12-slim`) | The catalog service |
-| `flask >= 3.0`, `gunicorn >= 22.0` | The only Python packages (`catalog/requirements.txt`) |
+| Go 1.24 (build image `golang:1.24-alpine`, run on `alpine:3.21`) | The catalog service, built when the image is |
 | A modern browser with WebRTC | Viewing (desktop, phone, or a TV browser) |
 
 **Optional online services** (the library works without them; you just get placeholder covers)
@@ -219,7 +219,7 @@ tests: `TMDB_API_URL`, `TMDB_IMAGE_URL`, `MUSICBRAINZ_URL`, `COVERART_URL`, `VLC
 | [TMDB](https://www.themoviedb.org) | DVD covers, synopses, genres | Free API key (`TMDB_API_KEY`) |
 | [MusicBrainz](https://musicbrainz.org) and [Cover Art Archive](https://coverartarchive.org) | CD album data and covers | None (a contact in `MUSICBRAINZ_CONTACT` is requested by MusicBrainz) |
 
-StreamISO itself has no JavaScript or Python dependencies beyond the two listed packages.
+StreamISO itself has no dependencies beyond Go's standard library and the images above.
 
 ## What is done and what is not
 
@@ -532,11 +532,13 @@ image. Whether you may use it depends on your country. Unprotected images work o
 streamiso/
 ├── docker-compose.yml     the two services (catalog, neko)
 ├── .env.example           configuration template
-├── catalog/               the library service (Flask)
-│   ├── app.py             scanning, metadata, covers, player API
-│   ├── vlcrc.py           client for VLC's remote-control interface
-│   ├── cdimage.py         cue sheet parser for audio CD images
-│   ├── musicbrainz.py     album and cover lookup
+├── catalog/               the library service (Go, see catalog/README.md)
+│   ├── cmd/catalog/       start-up: puts the pieces together
+│   ├── internal/domain/   the rules: titles, seasons, genres, edits, CD tracks
+│   ├── internal/app/      the use cases: catalog, library, metadata, playback
+│   ├── internal/ports/    the interfaces the use cases need
+│   ├── internal/adapters/ files, ISO/CUE scanning, VLC, TMDB, MusicBrainz, Neko
+│   ├── internal/httpapi/  the HTTP API
 │   └── static/            plain HTML, CSS and JavaScript (library and player pages)
 ├── neko/                  runs inside the Neko container
 │   ├── launcher.sh        opens the chosen disc in VLC
@@ -570,7 +572,6 @@ that StreamISO only talks to over the network, so they are not part of this proj
 - Built by Rubens ([@rubinhos](https://github.com/rubinhos)) in conversation with [Claude](https://claude.ai) (Anthropic), which wrote the code.
 - The StreamISO icon is original artwork released with this project.
 - [Neko](https://github.com/m1k1o/neko) (virtual browser / WebRTC streaming, Apache-2.0) and [VLC](https://www.videolan.org/vlc/) with libdvdnav
-- [Flask](https://flask.palletsprojects.com) and [Gunicorn](https://gunicorn.org)
 - Album data from [MusicBrainz](https://musicbrainz.org) and covers from the [Cover Art Archive](https://coverartarchive.org).
 - This product uses the TMDB API but is not endorsed or certified by TMDB.
 
