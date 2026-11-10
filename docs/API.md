@@ -179,7 +179,23 @@ Body: `{"action": "...", "value": ...}`. Returns `{"ok": true}`, or `{"error": "
 
 ### `POST /api/stop`
 
-Closes VLC and clears the screen. Returns `{"ok": true}`.
+Closes VLC and clears the screen, and stops the plain video if it runs. Returns `{"ok": true}`.
+
+### `POST /api/stream/hls`
+
+Plain video for a client whose WebRTC cannot connect to Neko (see [Plain video](#plain-video-hls) below). Starts it,
+or keeps it if it runs, and answers once two segments are ready, usually in about 3 seconds:
+
+```json
+{ "url": "/api/hls/index.m3u8" }
+```
+
+`501` when the server is not set up for it, `502` when Neko refused, `504` when no segment came in 10 seconds.
+
+### `GET /api/hls/<file>`
+
+The plain video's playlist (`index.m3u8`) and its segments (`seg00042.ts`). Each request counts as watching: once no
+file has been fetched for 30 seconds, the server stops the plain video.
 
 ### `GET /healthz`
 
@@ -208,3 +224,19 @@ with `postMessage`. Every message has `streamiso: true`:
 
 The stream page keeps VLC's own shortcuts out of reach: only the arrow keys, Enter, Space and the media keys
 go on to VLC, and right and middle clicks are ignored. Drive everything else through `/api/player/cmd`.
+
+### Plain video (HLS)
+
+Some TVs cannot use the WebRTC stream at all. LG's webOS 3 TVs run apps on Chrome 38, whose WebRTC only has DTLS
+1.0, while Neko requires DTLS 1.2: the connection fails with "unsupported protocol version". Such a TV can still play
+an ordinary video stream with its own player.
+
+For them, Neko's broadcast is set up in `docker-compose.yml` to encode the same screen and sound as H.264 and AAC in
+HLS segments of one second, in a volume it shares with the catalog. It is off until a client asks for it with
+`POST /api/stream/hls`, and the catalog stops it when the disc is closed or nobody fetches it for 30 seconds. It
+costs a second encoding, roughly one CPU core, only while it runs.
+
+Give the URL to the TV's `<video>` element. Everything else works as with WebRTC: commands go through
+`/api/player/cmd`. The picture arrives about 5 seconds late (measured on a webOS 3 TV, whose player keeps about
+2.5 seconds of buffer), so DVD menus answer slowly but films play normally. Its bit rate is `HLS_BITRATE` in `.env`
+(kbit/s, default 2500).

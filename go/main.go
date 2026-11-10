@@ -54,6 +54,7 @@ func currentDiscs() []*Disc {
 func main() {
 	log.SetFlags(log.LstdFlags)
 	loadConfig()
+	hls = newHLS()
 	vlc = &VlcRc{host: cfg.VLCHost, port: cfg.VLCPort, timeout: 2 * time.Second}
 	for ext, typ := range map[string]string{
 		".ico": "image/vnd.microsoft.icon", ".webmanifest": "application/manifest+json",

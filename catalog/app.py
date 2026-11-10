@@ -30,6 +30,7 @@ from flask import Flask, Response, abort, jsonify, request, send_file, send_from
 
 import musicbrainz
 from cdimage import CueError, locate, parse_cue, track_spans
+from hls import HlsBroadcast, HlsError
 from vlcrc import VlcError, VlcRc
 
 VERSION = "0.6.0"
@@ -51,6 +52,10 @@ NEKO_PUBLIC_URL = os.environ.get("NEKO_PUBLIC_URL", "").rstrip("/")
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGIN", "").split(",") if o.strip()]
 NEKO_USER = os.environ.get("NEKO_USER", "tv")
 NEKO_PASSWORD = os.environ.get("NEKO_PASSWORD", "neko")
+# Plain video for TVs whose WebRTC cannot reach Neko (see hls.py): Neko's broadcast writes HLS to HLS_DIR,
+# started with Neko's admin account through its API inside the Docker network.
+HLS = HlsBroadcast(Path(os.environ.get("HLS_DIR", "/hls")), os.environ.get("NEKO_INTERNAL_URL", "http://neko:8080"),
+                   "streamiso", os.environ.get("NEKO_ADMIN_PASSWORD", ""))
 
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "").strip()
 TMDB_LANGUAGE = os.environ.get("TMDB_LANGUAGE", "en-US")
@@ -1327,7 +1332,35 @@ def api_play(disc_id: str):
 @app.post("/api/stop")
 def api_stop():
     write_state("")
+    threading.Thread(target=HLS.stop, daemon=True).start()
     return jsonify({"ok": True})
+
+
+@app.post("/api/stream/hls")
+def api_stream_hls():
+    """Plain video (HLS) of what is on the player's screen, for a TV whose WebRTC cannot connect to Neko.
+    Starts it if needed and answers once it can be played. It stops when nobody fetches it for 30 s."""
+    if not HLS.available():
+        return jsonify({"error": "Plain video is not set up on this server: see HLS in the README"}), 501
+    try:
+        HLS.start()
+    except HlsError as exc:
+        app.logger.warning("Plain video: %s", exc)
+        return jsonify({"error": str(exc)}), 502
+    if not HLS.wait_ready():
+        return jsonify({"error": "The plain video did not start"}), 504
+    return jsonify({"url": "/api/hls/index.m3u8"})
+
+
+@app.get("/api/hls/<name>")
+def api_hls_file(name: str):
+    path = HLS.file(name)
+    if path is None:
+        abort(404)
+    kind = "application/vnd.apple.mpegurl" if name.endswith(".m3u8") else "video/mp2t"
+    resp = send_file(path, mimetype=kind, max_age=0, conditional=False, etag=False)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 @app.get("/player")

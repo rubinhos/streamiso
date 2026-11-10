@@ -1132,6 +1132,7 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 	if err := writeState(""); err != nil {
 		panic(err)
 	}
+	go hls.stop()
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
@@ -1303,6 +1304,8 @@ func routes() http.Handler {
 	mux.HandleFunc("DELETE /api/disc/{id}/cover", handleCoverDelete)
 	mux.HandleFunc("POST /api/play/{id}", handlePlay)
 	mux.HandleFunc("POST /api/stop", handleStop)
+	mux.HandleFunc("POST /api/stream/hls", handleStreamHLS)
+	mux.HandleFunc("GET /api/hls/{name}", handleHLSFile)
 	mux.HandleFunc("GET /api/player", handlePlayer)
 	mux.HandleFunc("GET /api/player/status", handlePlayerStatus)
 	mux.HandleFunc("POST /api/player/cmd", handlePlayerCmd)

@@ -420,6 +420,8 @@ compare("discs after edits", "GET", "/api/discs")
 compare("meta genres en", "PUT", f"/api/disc/{ids['Titanic Disc 2.iso']}/meta",
         body={"genres": ["Comedy", "Kids", "Sci-Fi & Fantasy", "Musical"]})
 compare("discs genre tags", "GET", "/api/discs")
+compare("plain video not set up", "POST", "/api/stream/hls")
+compare("plain video file missing", "GET", "/api/hls/index.m3u8")
 compare("watched on", "POST", f"/api/disc/{a1}/watched", body={"watched": True})
 compare("watched off", "POST", f"/api/disc/{a1}/watched", body={"watched": 0})
 compare("watched no body", "POST", f"/api/disc/{ids['lower.ISO']}/watched")

@@ -282,6 +282,7 @@ WebRTC. So the picture you see depends on these `.env` settings, not on VLC:
 | `STREAM_RESOLUTION` | `1024x576` | Size of the screen VLC draws on. `1024x576` is 16:9 at the height of a DVD (720x480 NTSC, 720x576 PAL), so it keeps all the disc's detail. A bigger screen adds none: it scales the picture up on the server instead of on the TV, costs more CPU and spreads the same bit rate over more pixels |
 | `STREAM_FPS` | `30` | Frames per second. `30` suits NTSC discs, `25` suits PAL discs |
 | `STREAM_BITRATE` | `4000` | Video bit rate in kbit/s. Raise it if fast scenes show blocks or blur. Neko's own default is about 2000 |
+| `HLS_BITRATE` | `2500` | Video bit rate in kbit/s of the plain video (HLS) for TVs that cannot use WebRTC. See below |
 | `DVD_DEINTERLACE` | `yadif` | How VLC removes the combing of interlaced DVDs: `yadif`, `yadif2x` (smoother, twice the frames, more CPU), `blend`, `bob`, or `off`. Discs flagged as progressive are left alone |
 
 Apply changes with `docker compose up -d`, which recreates the player container (an open disc is closed).
@@ -297,6 +298,13 @@ COMPOSE_FILE=docker-compose.yml;docker-compose.vp8.yml
 
 (With `:` instead of `;` when Docker runs on Linux or macOS.) [`docker-compose.vp8.yml`](docker-compose.vp8.yml) only
 changes the codec and its encoder settings; the other stream settings still apply.
+
+**Plain video (HLS) for old TVs.** Some TVs cannot use WebRTC at all: LG's webOS 3 TVs (2016–2017, and monitor TVs
+such as the 24TL520S) only have DTLS 1.0, and Neko requires DTLS 1.2. For them the server also offers the same screen
+and sound as an ordinary HLS stream, which the TV app asks for on its own. It runs only while such a TV plays a disc
+and costs about one CPU core then. The picture arrives about 5 seconds late, so DVD menus answer slowly. Nothing needs
+to be set up: `docker-compose.yml` already configures it, with `NEKO_ADMIN_PASSWORD` from `.env` to start and stop it.
+See "Plain video" in [docs/API.md](docs/API.md).
 
 ### DVD language
 
