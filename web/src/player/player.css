@@ -1,0 +1,166 @@
+/* The player page: the stream, the loading cover, the start button, the controls and the CD view. */
+:root { --accent: #f0b429; --fg: #fff; --muted: rgba(255, 255, 255, .72); }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden;
+  font: 500 15px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#player { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0; background: #000; z-index: 0; }
+#player.front { z-index: 2; }   /* audio mode: brought forward only when Neko needs a click to enable sound */
+
+/* ---- loading cover (until VLC answers) ---- */
+#loading { z-index: 3; position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; background: #000; pointer-events: none;
+  transition: opacity .4s; }
+#loading.done { opacity: 0; }
+.spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .2);
+  border-top-color: var(--accent); animation: spin .9s linear infinite; margin-bottom: 18px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading p { margin: 4px 0; color: var(--muted); }
+
+/* ---- start button (DVDs open paused; the click also gives the video the keyboard focus) ---- */
+#start { z-index: 3; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%;
+  border: 0; border-radius: 0; margin: 0; padding: 0; display: none; flex-direction: column;
+  align-items: center; justify-content: center; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer;
+  opacity: 1; }
+#start.show { display: flex; }
+#start .disc { width: 128px; height: 128px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; background: var(--accent); box-shadow: 0 8px 40px rgba(0, 0, 0, .6);
+  transition: transform .12s ease; }
+#start .disc svg { width: 64px; height: 64px; fill: #111; margin-left: 6px; }
+#start:hover .disc, #start:focus-visible .disc { transform: scale(1.08); }
+#start:focus-visible { outline: none; }
+#start .name { margin-top: 22px; font-size: 22px; font-weight: 600; max-width: 80%; text-align: center; }
+#start .sub { margin-top: 6px; font-size: 15px; color: var(--muted); }
+
+/* ---- control overlay ---- */
+#ui { z-index: 4; position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;
+  opacity: 1; transition: opacity .25s; }
+#ui.hidden { opacity: 0; }
+.bar { position: absolute; left: 0; right: 0; box-sizing: border-box; transition: transform .25s; }
+#ui.hidden .top { transform: translateY(-100%); }
+#ui.hidden .bottom { transform: translateY(100%); }   /* collapses downwards, towards the handle */
+
+/* ---- handle: the small tab that opens and collapses the bar of a DVD ---- */
+#handle { z-index: 4; position: fixed; left: 50%; bottom: 6px; width: 60px; height: 26px; margin-left: -30px;
+  border-radius: 13px; background: rgba(0, 0, 0, .45); opacity: .6; display: none;
+  transition: bottom .25s, opacity .15s, background .15s; }
+#handle svg { width: 26px; height: 26px; transition: transform .25s; }
+#handle:hover, #handle:focus-visible { opacity: 1; background: rgba(0, 0, 0, .75); }
+body.started:not(.audio) #handle { display: inline-flex; }
+body.ui-open #handle { bottom: 104px; }   /* just above the seek row */
+body.ui-open #handle svg { transform: rotate(180deg); }
+.top { top: 0; padding: 18px 24px 56px; display: flex; align-items: center;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, .78), rgba(0, 0, 0, 0)); }
+.bottom { bottom: 0; padding: 64px 24px 18px;
+  background: linear-gradient(to top, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0)); }
+#ui:not(.hidden) .top > *, #ui:not(.hidden) .bottom > * { pointer-events: auto; }
+
+#title { font-size: 20px; font-weight: 600; margin-left: 14px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+
+button { font: inherit; color: var(--fg); background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 50%; opacity: .9; flex: none;
+  transition: background .15s, opacity .15s, transform .1s; }
+button:hover { opacity: 1; background: rgba(255, 255, 255, .14); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; opacity: 1; }
+button:active { transform: scale(.94); }
+button[disabled] { opacity: .3; cursor: default; background: none; transform: none; }
+button svg { width: 28px; height: 28px; fill: currentColor; pointer-events: none; }
+button.big svg { width: 34px; height: 34px; }
+button.label { width: auto; border-radius: 23px; padding: 0 16px; font-weight: 600; }
+button.label svg { width: 22px; height: 22px; margin-right: 8px; }
+
+/* seek bar */
+.seekrow { display: flex; align-items: center; margin-bottom: 6px; }
+.time { min-width: 52px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.time.right { text-align: right; }
+#seek { position: relative; flex: 1; height: 28px; margin: 0 12px; cursor: pointer; touch-action: none;
+  outline: none; }
+#seek .track { position: absolute; left: 0; right: 0; top: 50%; height: 5px; margin-top: -2.5px;
+  border-radius: 3px; background: rgba(255, 255, 255, .28); transition: height .12s, margin-top .12s; }
+#seek:hover .track, #seek.drag .track, #seek:focus-visible .track { height: 8px; margin-top: -4px; }
+#seek .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: var(--accent); }
+#seek .thumb { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; left: 0;
+  border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform .12s; }
+#seek:hover .thumb, #seek.drag .thumb, #seek:focus-visible .thumb { transform: scale(1); }
+#seek .tip { position: absolute; bottom: 24px; padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, .85);
+  font-size: 13px; transform: translateX(-50%); display: none; font-variant-numeric: tabular-nums; }
+#seek:hover .tip, #seek.drag .tip { display: block; }
+#seek.off { cursor: default; opacity: .35; pointer-events: none !important; }
+.menutag { flex: 1; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* control row */
+.row { display: flex; align-items: center; position: relative; }
+.spacer { flex: 1; }
+.vol { display: flex; align-items: center; margin-left: 4px; }
+#volume { width: 0; opacity: 0; transition: width .2s, opacity .2s; -webkit-appearance: none; appearance: none;
+  height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .3); outline: none; margin: 0; cursor: pointer; }
+.vol:hover #volume, .vol:focus-within #volume, #volume.show { width: 100px; opacity: 1; margin: 0 10px 0 4px; }
+#volume::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--fg); border: 0; }
+#volume::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--fg); border: 0; }
+
+/* popup menus */
+.pop { position: absolute; bottom: 58px; min-width: 200px; max-width: 360px; max-height: 50vh; overflow: auto;
+  background: rgba(20, 20, 24, .96); border: 1px solid rgba(255, 255, 255, .14); border-radius: 10px;
+  padding: 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, .6); display: none; pointer-events: auto; }
+.pop.open { display: block; }
+.pop h4 { margin: 8px 10px 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pop .item { display: block; width: 100%; height: auto; border-radius: 6px; padding: 10px 12px 10px 32px;
+  text-align: left; justify-content: flex-start; position: relative; opacity: 1; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.pop .item.sel::before { content: "\2713"; position: absolute; left: 11px; color: var(--accent); font-weight: 700; }
+.pop .empty { padding: 10px 12px; color: var(--muted); }
+
+#toast { z-index: 5; position: fixed; left: 50%; top: 18%; transform: translateX(-50%); padding: 10px 18px; border-radius: 8px;
+  background: rgba(0, 0, 0, .8); opacity: 0; transition: opacity .2s; pointer-events: none; }
+#toast.show { opacity: 1; }
+
+/* ---- audio CD view ---- */
+#audioview { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; background: #0d0f1c; overflow: hidden; }
+#audioview[hidden] { display: none; }
+.av-bg { position: absolute; top: -8%; left: -8%; width: 116%; height: 116%; background-size: cover;
+  background-position: center; filter: blur(46px) saturate(.5) brightness(.42); }
+.av-main { position: absolute; top: 84px; bottom: 150px; left: 0; right: 0; display: flex;
+  align-items: center; justify-content: center; padding: 0 40px; box-sizing: border-box; }
+.av-cover { flex: none; height: min(100%, 460px); aspect-ratio: 1 / 1; margin-right: 48px; }
+.av-cover img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6); background: rgba(255, 255, 255, .06); }
+.av-side { flex: 1; min-width: 0; max-width: 560px; height: 100%; display: flex; flex-direction: column; }
+.av-album { font-size: 30px; font-weight: 700; line-height: 1.15; }
+.av-artist { margin: 6px 0 16px; color: var(--muted); font-size: 18px; }
+#av-tracks { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; min-height: 0; }
+#av-tracks li { display: flex; align-items: center; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+#av-tracks li:hover, #av-tracks li:focus-visible { background: rgba(255, 255, 255, .1); outline: none; }
+#av-tracks li.cur { background: rgba(240, 180, 41, .16); color: var(--accent); }
+#av-tracks .n { width: 34px; flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+#av-tracks li.cur .n { color: var(--accent); }
+#av-tracks .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#av-tracks .d { margin-left: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#av-hint { position: absolute; top: 76px; left: 0; right: 0; text-align: center; z-index: 6; display: none; }
+#av-hint span { display: inline-block; padding: 10px 18px; border-radius: 8px; background: rgba(0, 0, 0, .85);
+  border: 1px solid var(--accent); }
+body.unlock #av-hint { display: block; }
+body.audio #dvdmenu, body.audio #dvdreturn, body.audio #audio, body.audio #subs { display: none; }
+body.nofs #full { display: none; }   /* no fullscreen here (Android WebView, iPhones); the handle hides the bar */
+
+@media (max-height: 520px) and (min-width: 701px) {
+  .av-main { top: 64px; bottom: 100px; padding: 0 24px; }
+  .av-cover { margin-right: 24px; }
+  .av-album { font-size: 20px; }
+  .av-artist { margin: 2px 0 8px; font-size: 14px; }
+  #av-tracks li { padding: 6px 10px; }
+}
+@media (max-width: 700px) {
+  /* Keep the cover and track list between the top bar (about 60px) and the controls (about 100px). */
+  .av-main { flex-direction: column; justify-content: flex-start; align-items: stretch; top: 68px; bottom: 104px; padding: 0 16px; }
+  .av-cover { height: auto; width: min(34vw, 150px); margin: 0 auto 10px; flex: none; }
+  .av-side { width: 100%; max-width: none; height: auto; flex: 1; min-height: 0; }
+  .av-album { font-size: 18px; }
+  .av-artist { margin: 4px 0 8px; font-size: 14px; }
+  #av-tracks li { padding: 8px 10px; }
+  .bar { padding-left: 12px; padding-right: 12px; }
+  .hide-sm { display: none !important; }
+  button { width: 42px; height: 42px; }
+  body.ui-open #handle { bottom: 100px; }
+}

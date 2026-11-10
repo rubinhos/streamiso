@@ -124,7 +124,7 @@ Some of the decisions behind the code, for anyone reading or contributing:
 - **Discs open paused.** The browser's audio and video connect a moment after VLC starts, so the first seconds used to be lost. VLC now starts paused and is released once the browser is connected (CDs) or the viewer clicks the big play button (DVDs).
 - **Resume by position, not by file.** Positions are saved from the player's status poll and keyed by the image fingerprint, so they survive renames. A DVD is resumed by jumping to the saved title and time through rc while still paused.
 - **Plain files, no database.** The catalog is rebuilt in memory from a folder scan. User edits live in `data/library.json`, covers and lookup results in `data/`, and the "what is playing" state in a single file shared with the launcher.
-- **No front-end build.** The UI is plain HTML, CSS and JavaScript served by the catalog, with no framework and no external requests.
+- **A small, typed front end.** The web page is TypeScript with [Preact](https://preactjs.com) (about 4 KB), bundled by Vite into static files that the catalog serves. It is built inside the catalog's Docker image, so nothing needs to be installed, and it makes no external requests. See [`web/README.md`](web/README.md).
 - **Ports and adapters.** The catalog's rules and use cases talk to files, VLC, Neko, TMDB and MusicBrainz only through interfaces, so each of those can change on its own. It was first written in Python; the Go version gives the same answers and keeps the same files (the Python code is in the history).
 
 ## Technical overview
@@ -134,11 +134,12 @@ Some of the decisions behind the code, for anyone reading or contributing:
 | Language | Where | Lines |
 |---|---|---|
 | Go 1.24 | `catalog/cmd`, `catalog/internal`: HTTP API, use cases, rules, and the adapters for files, VLC, Neko, TMDB and MusicBrainz | ~5,460 |
-| JavaScript (vanilla, no build) | `catalog/static/app.js` (library), the script inside `player.html` (player) and `neko/neko-inject.html` (bridge) | ~1,350 |
-| HTML and CSS | `catalog/static/*.html`, `style.css` | ~690 |
+| TypeScript + Preact | `web/src`: the library and the player pages | ~2,490 |
+| JavaScript | `neko/neko-inject.html` (bridge between the stream and the player page) | ~200 |
+| CSS | `web/src/library/library.css`, `web/src/player/player.css` | ~590 |
 | Bash | `neko/launcher.sh`, `neko/patch-neko.sh` | ~110 |
 | Config | `docker-compose.yml`, `Dockerfile`, `neko/vlc.conf` (supervisord) | ~110 |
-| SVG | logo and icons in `assets/` and `catalog/static/` | |
+| SVG | logo and icons in `assets/` and `web/public/` | |
 
 **Tools and components**
 
@@ -210,6 +211,7 @@ tests: `TMDB_API_URL`, `TMDB_IMAGE_URL`, `MUSICBRAINZ_URL`, `COVERART_URL`, `VLC
 | Docker with Compose v2 | Runs both services |
 | [`ghcr.io/m1k1o/neko/vlc`](https://github.com/m1k1o/neko) image (Apache-2.0) | Linux desktop with VLC, streamed over WebRTC. VLC and libdvdnav come with it |
 | Go 1.24 (build image `golang:1.24-alpine`, run on `alpine:3.21`) | The catalog service, built when the image is |
+| Node 22 (build image `node:22-alpine`), Preact, TypeScript, Vite | The web page, built when the image is (`web/package.json`) |
 | A modern browser with WebRTC | Viewing (desktop, phone, or a TV browser) |
 
 **Optional online services** (the library works without them; you just get placeholder covers)
@@ -219,7 +221,7 @@ tests: `TMDB_API_URL`, `TMDB_IMAGE_URL`, `MUSICBRAINZ_URL`, `COVERART_URL`, `VLC
 | [TMDB](https://www.themoviedb.org) | DVD covers, synopses, genres | Free API key (`TMDB_API_KEY`) |
 | [MusicBrainz](https://musicbrainz.org) and [Cover Art Archive](https://coverartarchive.org) | CD album data and covers | None (a contact in `MUSICBRAINZ_CONTACT` is requested by MusicBrainz) |
 
-StreamISO itself has no dependencies beyond Go's standard library and the images above.
+Running StreamISO needs only Docker: the catalog image is built with Go and Node, and holds neither.
 
 ## What is done and what is not
 
@@ -538,8 +540,12 @@ streamiso/
 │   ├── internal/app/      the use cases: catalog, library, metadata, playback
 │   ├── internal/ports/    the interfaces the use cases need
 │   ├── internal/adapters/ files, ISO/CUE scanning, VLC, TMDB, MusicBrainz, Neko
-│   ├── internal/httpapi/  the HTTP API
-│   └── static/            plain HTML, CSS and JavaScript (library and player pages)
+│   └── internal/httpapi/  the HTTP API, which also serves the web page
+├── web/                   the web page (TypeScript + Preact, see web/README.md)
+│   ├── src/library/       the library: cards, seasons, filters, editor, poster picker
+│   ├── src/player/        the player: stream, controls, CD view
+│   ├── src/shared/        the API client and its types
+│   └── public/            icons, logo, web app manifest
 ├── neko/                  runs inside the Neko container
 │   ├── launcher.sh        opens the chosen disc in VLC
 │   ├── neko-inject.html   small script that reports activity to the player page
@@ -555,7 +561,7 @@ review, bug reports and tests are especially valuable.
 
 - Open an issue first for anything big, so the direction can be agreed.
 - By contributing you agree that your work is released under the Apache License 2.0.
-- Keep it simple: plain files, no database, no front-end build step.
+- Keep it simple: plain files, no database, and nothing to install besides Docker.
 - Describe how you tested the change (which disc type, which browser or TV).
 
 ## License

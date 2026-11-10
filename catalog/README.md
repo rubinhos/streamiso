@@ -3,7 +3,8 @@
 The catalog service: it scans the media folders, serves the web page and the HTTP API
 ([`../docs/API.md`](../docs/API.md)), keeps the user's edits, resume positions and covers in `data/`, looks discs up on
 TMDB and MusicBrainz, and drives the player (VLC inside the Neko container). It is written in Go with the standard
-library only, and runs as the `catalog` service of [`../docker-compose.yml`](../docker-compose.yml).
+library only, and runs as the `catalog` service of [`../docker-compose.yml`](../docker-compose.yml). Its image also
+holds the web page, built from [`../web`](../web), which it serves at `/` and `/player` and under `/static/`.
 
 The first version was written in Python. This one gives the same answers and reads and writes the same files, so
 nothing changed for the web page, the TV apps or the Android app. The Python code is in the repository's history.
@@ -53,14 +54,14 @@ only point inwards.
 | `internal/app` | The use cases. Their errors carry the API's status and message (`app.Failure`) |
 | `internal/adapters` | The outside world, one package per thing |
 | `internal/httpapi` | The routes: each handler reads the request, calls a use case and writes its answer |
-| `static` | The web page (plain HTML, CSS and JavaScript) |
 
 A new outside service (another metadata source, another player) is a new adapter behind an existing port, or a new
 port; the use cases and the API stay as they are.
 
 ## Building and running
 
-It builds and runs with the rest of StreamISO, from the repository root:
+It builds and runs with the rest of StreamISO, from the repository root (the image is built from there, because it
+also builds the web page in `web/`):
 
 ```sh
 docker compose up -d --build

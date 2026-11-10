@@ -1,5 +1,5 @@
 // Titles from file names, and the season and disc numbers written in them. Keep in step with
-// seasonOf() and parseFilmDisc() in static/app.js, which group the discs in the catalog.
+// seasonOf() and parseFilmDisc() in web/src/library/catalog.ts, which group the discs in the catalog.
 
 package domain
 

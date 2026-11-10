@@ -54,9 +54,12 @@ services:
       - "./neko:/opt/streamiso:ro"
       - "hls:/hls"
 
-  # Library with covers, metadata editing, and the API that drives the player
+  # Library with covers, metadata editing, and the API that drives the player. The image holds the Go service
+  # (catalog/) and the web page built from web/, so it is built from the repository root.
   catalog:
-    build: ./catalog
+    build:
+      context: .
+      dockerfile: catalog/Dockerfile
     container_name: streamiso-catalog
     restart: unless-stopped
     ports:

@@ -1,0 +1,15 @@
+# The catalog image is built from the repository root (it needs catalog/ and web/): keep the rest out.
+.git
+data
+state
+empty
+assets
+docs
+neko
+**/node_modules
+web/dist
+catalog/testdata
+catalog/tools
+**/*_test.go
+**/*.test.ts
+**/*.md
