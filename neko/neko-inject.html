@@ -6,13 +6,13 @@
   // show its control bar and react to remote-control media keys.
   if (window.parent === window) return;
 
-  // Keys the parent cares about (TV remotes, keyboards with media keys, Samsung Tizen key codes).
+  // Keys the parent cares about (TV remotes, keyboards with media keys, Samsung Tizen and LG webOS key codes).
   var MEDIA = {
     MediaPlayPause: "toggle", MediaPlay: "toggle", MediaPause: "toggle",
     MediaTrackNext: "next", MediaTrackPrevious: "prev",
     MediaFastForward: "forward", MediaRewind: "rewind", MediaStop: "stop",
     10252: "toggle", 415: "toggle", 19: "toggle",
-    417: "forward", 412: "rewind", 413: "stop", 10009: "back"
+    417: "forward", 412: "rewind", 413: "stop", 10009: "back", 461: "back"
   };
   var BACK = { BrowserBack: 1, GoBack: 1 };
   // Menu navigation. Neko forwards these keys to VLC itself when this viewer has control of the
