@@ -1,9 +1,14 @@
 name: streamiso
 
 services:
-  # DVD player (VLC with menus) streamed over WebRTC
+  # DVD and Blu-ray player (VLC with menus) streamed over WebRTC. Built from Neko's VLC image (NEKO_IMAGE) with
+  # Java for Blu-ray menus: see neko/Dockerfile.
   neko:
-    image: ${NEKO_IMAGE:-ghcr.io/m1k1o/neko/vlc:latest}
+    build:
+      context: ./neko
+      args:
+        NEKO_IMAGE: "${NEKO_IMAGE:-ghcr.io/m1k1o/neko/vlc:latest}"
+    image: streamiso-neko
     container_name: streamiso-neko
     restart: unless-stopped
     shm_size: "1gb"
@@ -49,6 +54,8 @@ services:
     volumes:
       - "${DVD_DIR:-${MEDIA_DIR:-./empty}}:/media/dvds:ro"
       - "${CD_DIR:-${MEDIA_DIR:-./empty}}:/media/cds:ro"
+      # Only its own folder: with MEDIA_DIR, Blu-ray images among the DVDs are found by their content.
+      - "${BLURAY_DIR:-./empty}:/media/blurays:ro"
       - "./state:/state:ro"
       - "./neko/vlc.conf:/etc/neko/supervisord/vlc.conf:ro"
       - "./neko:/opt/streamiso:ro"
@@ -67,6 +74,7 @@ services:
     environment:
       DVD_DIR: "/media/dvds"
       CD_DIR: "/media/cds"
+      BLURAY_DIR: "/media/blurays"
       DATA_DIR: "/data"
       STATE_FILE: "/state/current"
       NEKO_PORT: "${NEKO_PORT:-8081}"
@@ -86,6 +94,8 @@ services:
     volumes:
       - "${DVD_DIR:-${MEDIA_DIR:-./empty}}:/media/dvds:ro"
       - "${CD_DIR:-${MEDIA_DIR:-./empty}}:/media/cds:ro"
+      # Only its own folder: with MEDIA_DIR, Blu-ray images among the DVDs are found by their content.
+      - "${BLURAY_DIR:-./empty}:/media/blurays:ro"
       - "./data:/data"
       - "./state:/state"
       - "hls:/hls"

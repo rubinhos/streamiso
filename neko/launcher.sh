@@ -2,6 +2,7 @@
 # Runs inside the Neko container (as the "neko" user), replacing the stock VLC startup.
 # Watches the files written by the catalog service:
 #   state/current : path of an ISO -> open the disc in VLC with menus (dvdnav);
+#                   "bluray:<iso>" -> open a Blu-ray image with its menus (libbluray, BD-J in Java);
 #                   "cd-s16l:<bin>" -> play a raw audio CD image (BIN/CUE) as one stream;
 #                   empty/missing  -> close VLC (the screen goes blank)
 # VLC's remote-control (rc) interface listens on port 4212 for the catalog service
@@ -41,6 +42,12 @@ add_lang() {  # $1 variable name, $2 VLC option
 add_lang DVD_MENU_LANGUAGE menu-language
 add_lang DVD_AUDIO_LANGUAGE audio-language
 add_lang DVD_SUBTITLE_LANGUAGE sub-language
+
+# streamiso.lua: a VLC interface for what the rc port cannot do (a Blu-ray's pop-up menu). VLC finds Lua
+# interfaces in the user's data folder.
+LUA_INTF_DIR="${HOME:-/home/neko}/.local/share/vlc/lua/intf"
+mkdir -p "$LUA_INTF_DIR" && cp "$(dirname "$0")/streamiso.lua" "$LUA_INTF_DIR/" \
+  || echo "[launcher] could not install streamiso.lua: no Blu-ray pop-up menu"
 
 CUR=""
 VLC_PID=""
@@ -92,8 +99,12 @@ while true; do
       #                  resumes it once the browser's audio is connected, so no start is lost)
       #   cd-s16b:<bin>  raw audio CD image, big-endian samples
       #   file:<path>    an ordinary audio file (CUE sheets that point at WAV/FLAC)
+      #   bluray:<iso>   a Blu-ray image, opened with its menus. Most are Java programs (BD-J), which
+      #                  the image's Java 11 runs (see neko/Dockerfile); the disc's logos and trailers
+      #                  come first, so its menu shows after a minute or more, as on a Blu-ray player
       MODE="dvd"; TARGET="$WANT"; FOURCC=""
       case "$WANT" in
+        bluray:*)  MODE="bluray"; TARGET="${WANT#*:}" ;;
         cd-s16l:*) MODE="cd"; FOURCC="s16l"; TARGET="${WANT#*:}" ;;
         cd-s16b:*) MODE="cd"; FOURCC="s16b"; TARGET="${WANT#*:}" ;;
         file:*)    MODE="file"; TARGET="${WANT#*:}" ;;
@@ -106,12 +117,14 @@ while true; do
         ln -sf "$TARGET" "$LINK"
         COMMON=(--fullscreen --no-qt-fs-controller --qt-minimal-view --no-qt-system-tray --no-osd
                 --no-video-title-show --mouse-hide-timeout=500 --no-qt-privacy-ask --no-qt-error-dialogs
-                --extraintf=rc "--rc-host=$RC_ADDR:$RC_PORT")
+                "--rc-host=$RC_ADDR:$RC_PORT")
         case "$MODE" in
-          dvd)  vlc "${COMMON[@]}" "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
-          cd)   vlc "${COMMON[@]}" --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
+          dvd)  vlc "${COMMON[@]}" --extraintf=rc "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
+          bluray) vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" \
+                    --start-paused "bluray://$LINK" & ;;
+          cd)   vlc "${COMMON[@]}" --extraintf=rc --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
                     "--rawaud-fourcc=$FOURCC" "$LINK" & ;;
-          file) vlc "${COMMON[@]}" "$LINK" & ;;
+          file) vlc "${COMMON[@]}" --extraintf=rc "$LINK" & ;;
         esac
         VLC_PID=$!
       else

@@ -41,10 +41,18 @@ func yearAuto(d *domain.Disc, meta map[string]any) any {
 	return nil
 }
 
+// formatView is "bluray" for a Blu-ray image, else nil.
+func formatView(d *domain.Disc) any {
+	if d.Format == "" {
+		return nil
+	}
+	return d.Format
+}
+
 // resumeView is where the disc was left: time, percent and, for a CD, the track.
 func (l *Library) resumeView(d *domain.Disc) any {
 	entry := l.resume.Get(d.FP)
-	if len(entry) == 0 {
+	if len(entry) == 0 || d.Format == "bluray" {
 		return nil
 	}
 	pos := compat.Int(compat.GetOr(entry, "time", int64(0)))
@@ -113,6 +121,7 @@ func (l *Library) DiscView(d *domain.Disc, lib map[string]any) map[string]any {
 	return map[string]any{
 		"id":          d.ID,
 		"kind":        d.Kind,
+		"format":      formatView(d),
 		"artist":      d.Artist,
 		"track_count": len(d.Tracks),
 		"duration":    duration,

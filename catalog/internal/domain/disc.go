@@ -9,7 +9,8 @@ import "sync"
 type Disc struct {
 	ID         string
 	FP         string // fingerprint of the image: edits and resume positions are kept under it
-	Kind       string // "dvd" or "cd"
+	Kind       string // "dvd" or "cd"; a Blu-ray is a "dvd" too, since it plays the same way (menus, VLC)
+	Format     string // "bluray" for a Blu-ray image, "" otherwise
 	Path       string
 	State      string // what the player is told to open (see ports.PlayerState)
 	Rel        string

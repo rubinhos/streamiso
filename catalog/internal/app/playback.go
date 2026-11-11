@@ -57,6 +57,11 @@ func (p *Playback) rememberPosition(d *domain.Disc, pos, length, title any) {
 	if wait, res, ok := p.pendingFor(d); ok && (wait || res != nil) {
 		return // still starting up: the position says nothing yet
 	}
+	if d.Format == "bluray" {
+		// The disc's own (BD-J) program picks what plays, and VLC reports every playlist as title 1, so a
+		// saved time could not be found again: reopening would jump inside the studio logo or a trailer.
+		return
+	}
 	at, ok := compat.ToFloat(pos)
 	if !ok {
 		return
@@ -286,6 +291,9 @@ func (p *Playback) startPlayback(d *domain.Disc) error {
 func (p *Playback) Play(d *domain.Disc, resume bool) (map[string]any, error) {
 	entry := p.resume.Get(d.FP)
 	var res *resumeAt
+	if d.Format == "bluray" {
+		resume = false // see rememberPosition
+	}
 	if resume && len(entry) > 0 {
 		t := compat.Int(compat.GetOr(entry, "time", int64(0))) - 5
 		if t < 0 {
@@ -301,7 +309,7 @@ func (p *Playback) Play(d *domain.Disc, resume bool) (map[string]any, error) {
 	if err := p.state.Write(d.State); err != nil {
 		return nil, err
 	}
-	return map[string]any{"player_url": "/player", "title": p.library.ShownTitle(d), "kind": d.Kind}, nil
+	return map[string]any{"player_url": "/player", "title": p.library.ShownTitle(d), "kind": d.Kind, "format": formatView(d)}, nil
 }
 
 // Stop closes the disc, and the plain video if it runs.
@@ -316,11 +324,12 @@ func (p *Playback) Stop() error {
 // Info is what is open: title, kind, the position it resumes from and, for a CD, its tracks and cover.
 func (p *Playback) Info() map[string]any {
 	d := p.Playing()
-	out := map[string]any{"title": nil, "id": nil, "kind": "dvd"}
+	out := map[string]any{"title": nil, "id": nil, "kind": "dvd", "format": nil}
 	if d != nil {
 		out["title"] = p.library.ShownTitle(d)
 		out["id"] = d.ID
 		out["kind"] = d.Kind
+		out["format"] = formatView(d)
 		_, res, _ := p.pendingFor(d)
 		out["resume"] = res != nil
 		out["resume_at"] = nil
@@ -418,9 +427,19 @@ func (p *Playback) Command(payload map[string]any) error {
 			return number(0, 1000000, p.player.SetAudio)
 		case "subtitle":
 			return number(-1, 1000000, p.player.SetSubtitle)
-		case "menu":
-			return p.player.DiscMenu()
-		case "return":
+		case "menu", "return":
+			if d != nil && d.Format == "bluray" {
+				// Discs refuse the top menu during the film (VLC then jumps elsewhere in it), but most open
+				// their pop-up menu, the remote's Pop-up key, which usually leads back to the main menu too.
+				// VLC's remote-control port has no command for it, so it goes through the state folder.
+				if action == "return" {
+					return &domain.ValueError{Msg: "Use the menu button: on a Blu-ray it opens the disc's pop-up menu"}
+				}
+				return p.state.Signal("popup")
+			}
+			if action == "menu" {
+				return p.player.DiscMenu()
+			}
 			return p.player.PartMenu()
 		}
 		return fail(400, "Unknown action")

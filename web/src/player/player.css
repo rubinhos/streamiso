@@ -15,6 +15,7 @@ body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none
   border-top-color: var(--accent); animation: spin .9s linear infinite; margin-bottom: 18px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #loading p { margin: 4px 0; color: var(--muted); }
+#loading p.hint { margin-top: 10px; font-size: 14px; max-width: 80%; text-align: center; }
 
 /* ---- start button (DVDs open paused; the click also gives the video the keyboard focus) ---- */
 #start { z-index: 3; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%;
@@ -142,6 +143,8 @@ button.label svg { width: 22px; height: 22px; margin-right: 8px; }
   border: 1px solid var(--accent); }
 body.unlock #av-hint { display: block; }
 body.audio #dvdmenu, body.audio #dvdreturn, body.audio #audio, body.audio #subs { display: none; }
+/* A Blu-ray's menu button opens its pop-up menu; there is no "menu of what is playing" to return to */
+body.bluray #dvdreturn { display: none; }
 body.nofs #full { display: none; }   /* no fullscreen here (Android WebView, iPhones); the handle hides the bar */
 
 @media (max-height: 520px) and (min-width: 701px) {

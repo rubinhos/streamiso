@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,9 +18,15 @@ import (
 
 func (s *Server) handleDiscs(w http.ResponseWriter, r *http.Request) {
 	discs, genres, aliases, playing := s.library.Discs()
-	mediaDir := s.cfg.DVDDir
-	if s.cfg.DVDDir != s.cfg.CDDir {
-		mediaDir = s.cfg.DVDDir + " and " + s.cfg.CDDir
+	dirs := []string{s.cfg.DVDDir}
+	for _, d := range []string{s.cfg.BlurayDir, s.cfg.CDDir} {
+		if d != "" && !slices.Contains(dirs, d) {
+			dirs = append(dirs, d)
+		}
+	}
+	mediaDir := dirs[0]
+	if len(dirs) > 1 {
+		mediaDir = strings.Join(dirs[:len(dirs)-1], ", ") + " and " + dirs[len(dirs)-1]
 	}
 	writeJSON(w, 200, map[string]any{"discs": discs, "genres": genres, "genre_aliases": aliases, "media_dir": mediaDir,
 		"tmdb": s.metadata.TMDB(), "playing": playing})

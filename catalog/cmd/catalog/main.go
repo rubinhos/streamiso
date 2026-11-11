@@ -46,7 +46,7 @@ func main() {
 	music := &musicbrainz.Client{URL: cfg.MBURL, CAAURL: cfg.CAAURL, Contact: cfg.MBContact}
 	video := neko.New(cfg.HLSDir, cfg.NekoInternalURL, cfg.NekoAdminPass)
 
-	catalog := app.NewCatalog(media.New(cfg.DVDDir, cfg.CDDir))
+	catalog := app.NewCatalog(media.New(cfg.DVDDir, cfg.CDDir, cfg.BlurayDir))
 	metadata := app.NewMetadata(app.MetadataConfig{TMDBKey: cfg.TMDBKey, TMDBLanguage: cfg.TMDBLanguage},
 		movies, music, store.Metadata(), store.Library(), store.Covers(), catalog)
 	// DVDs are looked up on TMDB (needs a key), CDs on MusicBrainz (no key), after each scan

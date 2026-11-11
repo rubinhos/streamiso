@@ -1,9 +1,10 @@
-// Package media reads the media folders: DVD images (.iso) in DVD_DIR, audio CD images (.cue + .bin) in
-// CD_DIR. It implements ports.MediaScanner.
+// Package media reads the media folders: DVD images (.iso) in DVD_DIR, Blu-ray images (.iso) in BLURAY_DIR,
+// audio CD images (.cue + .bin) in CD_DIR. It implements ports.MediaScanner.
 package media
 
 import (
 	"crypto/sha1"
+	"encoding/binary"
 	"encoding/hex"
 	"io/fs"
 	"log"
@@ -17,16 +18,16 @@ import (
 	"sync"
 )
 
-// Scanner reads DVDDir and CDDir.
+// Scanner reads DVDDir, BlurayDir and CDDir.
 type Scanner struct {
-	DVDDir, CDDir string
+	DVDDir, CDDir, BlurayDir string
 
 	warnMu sync.Mutex
 	warned map[string]bool // cue sheets already reported as unusable
 }
 
-func New(dvdDir, cdDir string) *Scanner {
-	return &Scanner{DVDDir: dvdDir, CDDir: cdDir, warned: map[string]bool{}}
+func New(dvdDir, cdDir, blurayDir string) *Scanner {
+	return &Scanner{DVDDir: dvdDir, CDDir: cdDir, BlurayDir: blurayDir, warned: map[string]bool{}}
 }
 
 func sha1Hex(data []byte) string {
@@ -57,6 +58,78 @@ func readPVD(path string) []byte {
 		return nil
 	}
 	return data
+}
+
+// udfVolume tells whether an image is a Blu-ray and reads its UDF primary volume descriptor.
+//
+// A Blu-ray image holds only UDF 2.x, announced by an "NSR03" descriptor in the volume recognition
+// sequence (from sector 16); a DVD holds ISO 9660 plus UDF 1.x ("NSR02"). The primary volume descriptor
+// (tag 1) is found through the anchor at sector 256; its 512 bytes carry the volume name and recording
+// time, so they also fingerprint the disc. pvd is nil if it cannot be read.
+func udfVolume(path string) (bluray bool, pvd []byte) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, nil
+	}
+	defer f.Close()
+	sector := make([]byte, 2048)
+	read := func(n int64) bool {
+		got, _ := f.ReadAt(sector, n*2048)
+		return got == 2048
+	}
+	for n := int64(16); n < 32 && read(n); n++ {
+		id := string(sector[1:6])
+		if id == "NSR03" {
+			bluray = true
+		}
+		if sector[0] == 0 && id == "\x00\x00\x00\x00\x00" {
+			break // end of the sequence
+		}
+	}
+	if !bluray || !read(256) || binary.LittleEndian.Uint16(sector[0:2]) != 2 {
+		return bluray, nil
+	}
+	length := binary.LittleEndian.Uint32(sector[16:20])
+	start := int64(binary.LittleEndian.Uint32(sector[20:24]))
+	for n := start; n < start+int64(length/2048) && n < start+64 && read(n); n++ {
+		switch binary.LittleEndian.Uint16(sector[0:2]) {
+		case 1: // primary volume descriptor
+			return true, append([]byte{}, sector[:512]...)
+		case 8: // terminating descriptor
+			return true, nil
+		}
+	}
+	return true, nil
+}
+
+// udfLabel is the volume name of a UDF primary volume descriptor (a 32-byte dstring at offset 24: a
+// compression byte, 8 for one byte per character or 16 for UCS-2, then the characters; the last byte is the
+// length used).
+func udfLabel(pvd []byte) string {
+	if len(pvd) < 56 {
+		return ""
+	}
+	d := pvd[24:56]
+	n := int(d[31])
+	if n < 1 || n > 31 {
+		return ""
+	}
+	var b strings.Builder
+	switch d[0] {
+	case 8:
+		for _, c := range d[1:n] {
+			if c >= 0x20 && c < 0x80 {
+				b.WriteByte(c)
+			}
+		}
+	case 16:
+		for i := 1; i+1 < n; i += 2 {
+			if r := rune(d[i])<<8 | rune(d[i+1]); r >= 0x20 {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return compat.Strip(b.String())
 }
 
 // withSuffix is Path.with_suffix: the path with its last suffix replaced.
@@ -218,12 +291,111 @@ func (s *Scanner) scanCue(p string, perDir map[string]int) *domain.Disc {
 	}
 }
 
-// Scan reads DVD_DIR for ISOs and CD_DIR for cue sheets.
+// isoRoot is one folder of disc images, and the prefix that keeps its disc IDs apart from another folder's.
+type isoRoot struct{ dir, idPrefix string }
+
+// isoRoots are DVD_DIR and BLURAY_DIR, once each: with MEDIA_DIR they are the same folder. Each image is
+// told apart by its content, so a Blu-ray in DVD_DIR (or a DVD in BLURAY_DIR) still opens as what it is.
+func (s *Scanner) isoRoots() []isoRoot {
+	roots := []isoRoot{{dir: s.DVDDir}}
+	if s.BlurayDir != "" && filepath.Clean(s.BlurayDir) != filepath.Clean(s.DVDDir) {
+		roots = append(roots, isoRoot{dir: s.BlurayDir, idPrefix: "bluray/"})
+	}
+	return roots
+}
+
+// scanISO turns one DVD or Blu-ray image into a disc entry.
+func scanISO(root isoRoot, p string, perDir map[string]int) *domain.Disc {
+	rel := relPosix(root.dir, p)
+	id := sha1Hex([]byte(root.idPrefix + rel))[:12]
+	format, state := "", p
+	label := ""
+	pvd := readPVD(p)
+	if pvd != nil {
+		var b strings.Builder
+		for _, c := range pvd[40:72] {
+			if c < 0x80 {
+				b.WriteByte(c)
+			}
+		}
+		label = compat.Strip(b.String())
+	}
+	if bluray, udf := udfVolume(p); bluray {
+		format, state = "bluray", "bluray:"+p
+		if udf != nil {
+			pvd = udf
+			if l := udfLabel(udf); l != "" {
+				label = l
+			}
+		}
+	}
+	var size, added int64
+	if st, err := os.Stat(p); err == nil {
+		size, added = st.Size(), st.ModTime().Unix()
+	}
+	// Fingerprint: the volume descriptor (label, creation date, volume size...) plus the file
+	// size. Survives renaming/moving the ISO.
+	var fpSrc []byte
+	if pvd != nil {
+		fpSrc = append(append([]byte{}, pvd...), strconv.FormatInt(size, 10)...)
+	} else {
+		fpSrc = []byte(rel + strconv.FormatInt(size, 10))
+	}
+	title, year := domain.CleanTitle(compat.Stem(p))
+	if domain.IsGeneric(title) {
+		// generic file name: try the folder name (if it holds a single ISO), then the volume label
+		parent := filepath.Dir(p)
+		if perDir[parent] == 1 && filepath.Clean(parent) != filepath.Clean(root.dir) {
+			ft, fy := domain.CleanTitle(filepath.Base(parent))
+			if ft != "" && !domain.IsGeneric(ft) {
+				title = ft
+				if fy != "" {
+					year = fy
+				}
+			}
+		}
+		if domain.IsGeneric(title) {
+			lt, ly := domain.CleanTitle(label)
+			if lt != "" && !domain.IsGeneric(lt) {
+				title = lt
+				if year == "" {
+					year = ly
+				}
+			} else if title == "" {
+				title = compat.Stem(p)
+			}
+		}
+	}
+	return &domain.Disc{
+		ID:        id,
+		FP:        sha1Hex(fpSrc)[:16],
+		Kind:      "dvd",
+		Format:    format,
+		Path:      p,
+		State:     state,
+		Rel:       rel,
+		Title:     title,
+		Year:      year,
+		Label:     label,
+		Size:      size,
+		Added:     added,
+		UserCover: findUserCover(p, perDir[filepath.Dir(p)]),
+	}
+}
+
+// Scan reads DVD_DIR and BLURAY_DIR for ISOs and CD_DIR for cue sheets.
 func (s *Scanner) Scan() *domain.Catalog {
-	isos := walkFiles(s.DVDDir, ".iso")
+	roots := s.isoRoots()
+	isos := make([][]string, len(roots))
 	cues := walkFiles(s.CDDir, ".cue")
 	perDir := map[string]int{}
-	for _, p := range append(append([]string{}, isos...), cues...) {
+	for i, r := range roots {
+		isos[i] = walkFiles(r.dir, ".iso")
+		for _, p := range isos[i] {
+			perDir[filepath.Dir(p)]++
+		}
+	}
+	for _, p := range cues {
 		perDir[filepath.Dir(p)]++
 	}
 	found := domain.NewCatalog()
@@ -232,72 +404,10 @@ func (s *Scanner) Scan() *domain.Catalog {
 			found.Put(d)
 		}
 	}
-	dvdRoot := filepath.Clean(s.DVDDir)
-	for _, p := range isos {
-		rel := relPosix(s.DVDDir, p)
-		id := sha1Hex([]byte(rel))[:12]
-		pvd := readPVD(p)
-		label := ""
-		if pvd != nil {
-			var b strings.Builder
-			for _, c := range pvd[40:72] {
-				if c < 0x80 {
-					b.WriteByte(c)
-				}
-			}
-			label = compat.Strip(b.String())
+	for i, r := range roots {
+		for _, p := range isos[i] {
+			found.Put(scanISO(r, p, perDir))
 		}
-		var size, added int64
-		if st, err := os.Stat(p); err == nil {
-			size, added = st.Size(), st.ModTime().Unix()
-		}
-		// Fingerprint: the volume descriptor (label, creation date, volume size...) plus the file
-		// size. Survives renaming/moving the ISO.
-		var fpSrc []byte
-		if pvd != nil {
-			fpSrc = append(append([]byte{}, pvd...), strconv.FormatInt(size, 10)...)
-		} else {
-			fpSrc = []byte(rel + strconv.FormatInt(size, 10))
-		}
-		title, year := domain.CleanTitle(compat.Stem(p))
-		if domain.IsGeneric(title) {
-			// generic file name: try the folder name (if it holds a single ISO), then the volume label
-			parent := filepath.Dir(p)
-			if perDir[parent] == 1 && filepath.Clean(parent) != dvdRoot {
-				ft, fy := domain.CleanTitle(filepath.Base(parent))
-				if ft != "" && !domain.IsGeneric(ft) {
-					title = ft
-					if fy != "" {
-						year = fy
-					}
-				}
-			}
-			if domain.IsGeneric(title) {
-				lt, ly := domain.CleanTitle(label)
-				if lt != "" && !domain.IsGeneric(lt) {
-					title = lt
-					if year == "" {
-						year = ly
-					}
-				} else if title == "" {
-					title = compat.Stem(p)
-				}
-			}
-		}
-		found.Put(&domain.Disc{
-			ID:        id,
-			FP:        sha1Hex(fpSrc)[:16],
-			Kind:      "dvd",
-			Path:      p,
-			State:     p,
-			Rel:       rel,
-			Title:     title,
-			Year:      year,
-			Label:     label,
-			Size:      size,
-			Added:     added,
-			UserCover: findUserCover(p, perDir[filepath.Dir(p)]),
-		})
 	}
 	return found
 }

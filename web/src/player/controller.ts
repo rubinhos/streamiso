@@ -7,6 +7,8 @@ import type { PlayerInfo, PlayerStatus, Track, TrackChoice } from "../shared/typ
 export interface State {
   title: string;
   kind: "dvd" | "cd";
+  /** A Blu-ray: its menu shows when it opens, so the bar has no menu buttons. */
+  bluray: boolean;
   artist: string;
   cover: string;
   tracks: Track[];
@@ -21,6 +23,11 @@ export interface State {
   pop: "audio" | "subs" | null;
   needStart: boolean;
   started: boolean;
+  /**
+   * A Blu-ray that was just started and has not played a frame yet: its menu program (Java) takes about
+   * 20 seconds to start, on a still picture, so the loading cover stays up meanwhile.
+   */
+  bdOpening: boolean;
   resumeAt: number;
   loadingDone: boolean;
   toast: string;
@@ -49,8 +56,8 @@ async function call<T>(path: string, body?: unknown): Promise<Answer<T>> {
 
 export class PlayerController {
   s: State = {
-    title: "", kind: "dvd", artist: "", cover: "", tracks: [], frameSrc: "", status: null, volume: 100,
-    dragging: false, dragPct: 0, hold: null, uiOpen: true, pop: null, needStart: false, started: false, resumeAt: 0,
+    title: "", kind: "dvd", bluray: false, artist: "", cover: "", tracks: [], frameSrc: "", status: null, volume: 100,
+    dragging: false, dragPct: 0, hold: null, uiOpen: true, pop: null, needStart: false, started: false, bdOpening: false, resumeAt: 0,
     loadingDone: false, toast: "", toastShown: false, fsSupported: false, fullscreen: false, unlock: false,
   };
 
@@ -66,6 +73,7 @@ export class PlayerController {
   private resumePending = false;
   private resumeBusy = false;
   private resumedCd = false;
+  private bdOpened = false; // the Blu-ray opening cover was shown once already
   private lastState: string | undefined;
   private polling = false;
 
@@ -82,6 +90,7 @@ export class PlayerController {
     b.toggle("ui-open", this.s.uiOpen);
     b.toggle("started", this.s.started);
     b.toggle("audio", this.s.kind === "cd");
+    b.toggle("bluray", this.s.bluray);
     b.toggle("unlock", this.s.unlock);
     b.toggle("nofs", !this.s.fsSupported);
     for (const l of this.listeners) l();
@@ -125,7 +134,7 @@ export class PlayerController {
     call<PlayerInfo>("/api/player").then((r) => {
       const d = r.body;
       this.resumePending = !!d.resume;
-      const change: Partial<State> = { resumeAt: d.resume_at || 0, frameSrc: d.url };
+      const change: Partial<State> = { resumeAt: d.resume_at || 0, frameSrc: d.url, bluray: d.format === "bluray" };
       if (d.kind === "cd") {
         Object.assign(change, { kind: "cd", tracks: d.tracks || [], artist: d.artist || "", cover: d.cover || "" });
       }
@@ -303,6 +312,8 @@ export class PlayerController {
     const playing = st.state === "playing";
     const change: Partial<State> = { status: st };
     if (this.s.hold && Date.now() >= this.s.hold.until) change.hold = null;
+    // A Blu-ray has really started once its time moves (the first studio logo).
+    if (this.s.bdOpening && playing && (st.time || 0) > 0) change.bdOpening = false;
     this.set(change);
     if (playing && this.s.needStart) this.discStarted();
     // A paused disc keeps an open bar up: start counting once it plays again.
@@ -370,7 +381,13 @@ export class PlayerController {
 
   /** The disc is running: the start screen goes, and so does the bar, leaving the disc's menu uncovered. */
   private discStarted(): void {
-    this.set({ needStart: false, started: true });
+    const opening = this.s.bluray && !this.s.started && !this.bdOpened;
+    this.set({ needStart: false, started: true, bdOpening: opening });
+    if (opening) {
+      this.bdOpened = true;
+      // Never keep the cover up for good: a disc that does not start shows what VLC shows.
+      setTimeout(() => this.set({ bdOpening: false }), 60000);
+    }
     this.hideUiNow();
   }
 

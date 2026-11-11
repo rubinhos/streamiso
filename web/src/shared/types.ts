@@ -2,6 +2,9 @@
 
 export type Kind = "dvd" | "cd";
 
+/** "bluray" for a Blu-ray image (its kind is "dvd": it plays the same way), else null. */
+export type Format = "bluray" | null;
+
 /** Where a disc was left. */
 export interface Resume {
   time: number;
@@ -35,6 +38,7 @@ export interface AutoInfo {
 export interface Disc {
   id: string;
   kind: Kind;
+  format?: Format;
   artist: string;
   track_count: number;
   duration: number | null;
@@ -83,6 +87,7 @@ export interface PlayerInfo {
   title: string | null;
   id: string | null;
   kind: Kind;
+  format?: Format;
   resume?: boolean;
   resume_at?: number | null;
   artist?: string;

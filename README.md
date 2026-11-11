@@ -82,7 +82,7 @@ The server does the work that an old DVD player would do, and any screen with a 
 
 **DVD playback**
 - The actual disc: menus, buttons, chapters, extras, audio and subtitle selection (VLC + libdvdnav)
-- Streaming-style control bar: play/pause, seek bar with times, chapter skip, ±10 s, volume, audio and subtitle menus, **DVD menu** button, fullscreen
+- Streaming-style control bar: play/pause, seek bar with times, chapter skip, ±10 s, volume, audio and subtitle menus, **Disc menu** button, fullscreen
 - A big play button starts the disc, so the menu never starts half-played and the browser allows sound
 - Remote-friendly: media keys and arrow keys work; menu navigation falls back to VLC directly when the stream does not have keyboard control
 
@@ -236,7 +236,8 @@ Running StreamISO needs only Docker: the catalog image is built with Go and Node
 - One viewing session at a time
 - No automated tests
 - Not yet verified against the real services in every case (see the note at the top)
-- Blu-ray, CD images split into one file per track, and mixed-mode CDs are not supported
+- Protected Blu-ray images, Blu-ray resume, CD images split into one file per track, and mixed-mode CDs are not
+  supported
 
 See the [Roadmap](#roadmap).
 
@@ -262,6 +263,7 @@ Test in a desktop browser first, then on the TV.
 |---|---|---|
 | `DVD_DIR` | `MEDIA_DIR` | Folder with your DVD ISO images, mounted read-only |
 | `CD_DIR` | `MEDIA_DIR` | Folder with your audio CD images (`.cue` + `.bin`), mounted read-only |
+| `BLURAY_DIR` | empty | Folder with your Blu-ray ISO images (unprotected), mounted read-only. Optional: Blu-ray images among the DVDs are recognized anyway. See [Blu-ray](#blu-ray) |
 | `MEDIA_DIR` | empty | One folder for both, used when `DVD_DIR` / `CD_DIR` are not set |
 | `SERVER_IP` | (required) | Server IP on your network; used for WebRTC |
 | `NEKO_PASSWORD` | `neko` | Password the catalog uses to log into the player |
@@ -390,7 +392,7 @@ Tip: edit from a desktop or phone. Typing with a TV remote is painful; on the TV
 - **Library**: arrow keys move focus, OK / Enter opens the disc.
 - **Player**: key presses go to VLC. Arrows navigate the DVD menu, Enter selects. A DVD plays with the control bar collapsed, so it never covers the disc's own menu: the small handle at the bottom of the screen opens it (playback shortcuts such as Space or ±10 s open it too), and collapses it again. While playing, the bar also collapses by itself after a few seconds without activity.
 - **Loading screen**: while VLC starts and the stream connects, StreamISO shows its own spinner instead of Neko's connecting screen. If the stream has not started after 25 seconds the cover is lifted, so connection errors stay visible.
-- **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **DVD menu**, audio track, subtitles, fullscreen (left out where the page cannot go fullscreen: the Android app, iPhones). Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
+- **Control bar**: play/pause, previous/next chapter, back/forward 10 s, volume, **Disc menu**, audio track, subtitles, fullscreen (left out where the page cannot go fullscreen: the Android app, iPhones). Click or drag the seek bar to jump. The seek bar is disabled whenever VLC reports no duration (typically in DVD menus).
 - **Remote / keyboard media keys**: play/pause, rewind, fast-forward, next/previous and stop work while the video has focus. Stop and the remote's Back key return to the library.
 - **Back arrow** (top left) stops the disc and returns to the library; the browser's Back button does the same.
 - With the page itself focused (not the video): Space or K play/pause, arrows seek and change volume, M mute, F fullscreen.
@@ -425,7 +427,31 @@ The first time, the browser may block sound until you click once: StreamISO then
 
 ## Blu-ray
 
-Not supported yet. VLC 3 plays unprotected Blu-ray images with limited menus and no BD-J, and protected discs need AACS keys, so this needs more design first.
+Unprotected Blu-ray images (`.iso`, decrypted when they were made) play with their menus. Put them in `BLURAY_DIR`
+(`.env`), or among the DVDs: an image is recognized as a Blu-ray by its content (UDF 2.x), and its card says **Blu-ray**.
+
+Most Blu-ray menus are Java programs on the disc (BD-J). The player image (`neko/Dockerfile`) adds what VLC needs to
+run them: libbluray's BD-J module and a Java 11 runtime (Eclipse Temurin). Java 11 on purpose: with Debian's Java 21
+or 25 the disc's program starts but stops before the menu. The first `docker compose up -d --build` builds it.
+
+What to expect:
+
+- **Like a Blu-ray player, the disc opens with its logos and trailers,** and its menu shows after them, often a
+  minute or more. Many discs do not let these be skipped. Before the first logo the disc's program takes about
+  20 seconds to start on a still picture, so the player keeps its loading screen up ("Opening the Blu-ray…") until then.
+- **Arrows and OK work in the menu,** from the keyboard or the remote, as in a DVD menu.
+- **During the film, the bar's Disc menu button opens the disc's pop-up menu,** like the Pop-up key of a Blu-ray remote.
+  Discs refuse their main menu while the film plays, but the pop-up menu usually offers the way back to it (on the
+  disc tested: Main menu, Languages, Scene selections, Special features). Arrows and OK move in it; it closes by itself
+  after a few seconds without a key. VLC's remote-control port has no command for it, so `neko/streamiso.lua`, a small
+  VLC interface, runs it. The bar has no Return button for Blu-ray.
+- **No resume.** The disc's own program picks what plays, so a saved position could not be found again: a Blu-ray
+  always starts from the beginning.
+- **Seeking, chapters, audio and subtitle tracks** work during the film.
+- **BD-Live (internet extras) is off,** and the menu's BD-Live item does nothing.
+- **Protected images do not play.** VLC would need the disc's AACS keys.
+- **Menus vary by disc.** BD-J support in VLC 3 is incomplete, so a disc may still open without its menu or stop on a
+  black screen. Checked with a Sony Pictures 3D disc (menus by Ensequence): menu, submenus, 2D/3D choice and film.
 
 ## Running on Windows
 
@@ -490,7 +516,7 @@ start: `docker exec streamiso-neko cat /var/log/neko/openbox.log`.
 **The control bar shows but nothing responds / "Player not ready".** The catalog could not reach VLC's remote-control port.
 Check that VLC is running (`docker exec streamiso-neko pgrep -a vlc`) and that the launcher log shows the disc opening.
 
-**The DVD menu button does nothing.** VLC did not accept the `key-disc-menu` action; open an issue with your VLC version.
+**The Disc menu button does nothing.** VLC did not accept the `key-disc-menu` action; open an issue with your VLC version.
 
 **Media keys do nothing, or the open control bar collapses while the mouse moves over the video.** The page of the Neko
 container is patched at start-up with a small script (`neko/patch-neko.sh`, `neko/neko-inject.html`) that reports mouse and
@@ -525,7 +551,6 @@ image. Whether you may use it depends on your country. Unprotected images work o
 - Automated tests and CI
 - Multiple simultaneous sessions (one player container per session)
 - Cover from the DVD menu frame when no image exists
-- Blu-ray discs (see below)
 - CD images split into one file per track
 
 ## Project layout

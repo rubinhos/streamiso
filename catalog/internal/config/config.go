@@ -14,18 +14,19 @@ import (
 const Version = "0.6.0"
 
 type Config struct {
-	DVDDir, CDDir, DataDir, StateFile string
-	VLCHost                           string
-	VLCPort                           int
-	NekoPort, NekoPublicURL           string
-	NekoUser, NekoPassword            string
-	NekoInternalURL, NekoAdminPass    string
-	HLSDir                            string
-	CORSOrigins                       []string
-	TMDBKey, TMDBLanguage             string
-	TMDBAPI, TMDBImg                  string
-	MBURL, CAAURL, MBContact          string
-	Port, StaticDir                   string
+	DVDDir, CDDir, BlurayDir       string
+	DataDir, StateFile             string
+	VLCHost                        string
+	VLCPort                        int
+	NekoPort, NekoPublicURL        string
+	NekoUser, NekoPassword         string
+	NekoInternalURL, NekoAdminPass string
+	HLSDir                         string
+	CORSOrigins                    []string
+	TMDBKey, TMDBLanguage          string
+	TMDBAPI, TMDBImg               string
+	MBURL, CAAURL, MBContact       string
+	Port, StaticDir                string
 
 	// Under DataDir
 	CoverDir       string // covers downloaded from TMDB or the Cover Art Archive
@@ -63,6 +64,7 @@ func Load() (Config, error) {
 	}
 	c.DVDDir = cleanPath(first(os.Getenv("DVD_DIR"), media, "/media/dvds"))
 	c.CDDir = cleanPath(first(os.Getenv("CD_DIR"), media, "/media/cds"))
+	c.BlurayDir = cleanPath(first(os.Getenv("BLURAY_DIR"), media, "/media/blurays"))
 	c.DataDir = cleanPath(env("DATA_DIR", "/data"))
 	c.StateFile = cleanPath(env("STATE_FILE", "/state/current"))
 	c.VLCHost = env("VLC_RC_HOST", "neko")

@@ -44,7 +44,7 @@ export function DiscItem({ d, aliases, actions, inProgress }: { d: Disc; aliases
           {pct !== null && (
             <span class="progress"><span style={{ width: Math.max(3, Math.min(100, pct)) + "%" }} /></span>
           )}
-          <span class="kindtag">{d.kind === "cd" ? "🎵 CD" : "🎞️ DVD"}</span>
+          <span class="kindtag">{d.kind === "cd" ? "🎵 CD" : d.format === "bluray" ? "💿 Blu-ray" : "🎞️ DVD"}</span>
         </Cover>
         <span class="title">{d.title}</span>
         <span class="sub">{subText(d) || formatSize(d.size)}</span>

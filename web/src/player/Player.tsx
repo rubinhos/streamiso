@@ -132,10 +132,17 @@ export function Player({ ctl }: { ctl: PlayerController }) {
         </div>
       </div>
 
-      <div id="loading" class={s.loadingDone ? "done" : ""}>
+      <div id="loading" class={s.loadingDone && !s.bdOpening ? "done" : ""}>
         <div class="spinner" />
         <p id="loading-title">{s.title}</p>
-        <p>Loading…</p>
+        {s.bdOpening ? (
+          <>
+            <p>Opening the Blu-ray…</p>
+            <p class="hint">Its menu shows after the studio logos, in about a minute.</p>
+          </>
+        ) : (
+          <p>Loading…</p>
+        )}
       </div>
 
       <button id="start" ref={startRef} type="button" aria-label="Play" class={s.needStart ? "show" : ""} onClick={() => ctl.startDisc()}>
@@ -223,8 +230,10 @@ export function Player({ ctl }: { ctl: PlayerController }) {
               title="Back to the menu of what is playing (the disc decides which: often the one it was started from)" onClick={() => ctl.returnToMenu()}>
               <svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>Return
             </button>
-            <button id="dvdmenu" class="label hide-sm" type="button" title="Go to the DVD's main menu" onClick={() => ctl.menu()}>
-              <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>DVD menu
+            <button id="dvdmenu" class="label hide-sm" type="button"
+              title={s.bluray ? "Open the disc's pop-up menu (it usually has a way back to the main menu)" : "Go to the DVD's main menu"}
+              onClick={() => ctl.menu()}>
+              <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>Disc menu
             </button>
             <button id="audio" type="button" title="Audio" aria-label="Audio track" disabled={!(st.audio && st.audio.length)} onClick={() => ctl.togglePop("audio")}>
               <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z" /></svg>

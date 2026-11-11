@@ -41,6 +41,9 @@ type Resume interface {
 type PlayerState interface {
 	Read() string
 	Write(state string) error
+	// Signal passes a command to the player that its remote-control port cannot carry ("popup": a
+	// Blu-ray's pop-up menu). The player container watches it too (neko/streamiso.lua).
+	Signal(command string) error
 }
 
 // Covers holds the covers: the ones the user uploaded (by fingerprint) and the downloaded ones (by id).

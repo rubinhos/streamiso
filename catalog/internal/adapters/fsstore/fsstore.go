@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"time"
 
 	"streamiso/internal/compat"
 	"streamiso/internal/config"
@@ -201,6 +203,13 @@ func (st *State) Read() string {
 		return ""
 	}
 	return compat.Strip(string(data))
+}
+
+// Signal writes "<sequence> <command>" to the file "command" next to the state file. The sequence (the time
+// in nanoseconds) makes each request new, so the player runs it once even if the same command repeats.
+func (st *State) Signal(command string) error {
+	path := filepath.Join(filepath.Dir(st.cfg.StateFile), "command")
+	return writeFile(path, []byte(strconv.FormatInt(time.Now().UnixNano(), 10)+" "+command+"\n"))
 }
 
 // ---------------------------------------------------------------------------------- covers

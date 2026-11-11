@@ -96,10 +96,14 @@ Body (optional): `{"resume": true}` to continue where it was left (5 seconds ear
 starts over and any saved position is cleared.
 
 ```json
-{ "player_url": "/player", "title": "Disc title", "kind": "dvd" }
+{ "player_url": "/player", "title": "Disc title", "kind": "dvd", "format": null }
 ```
 
 `player_url` is the built-in web player page; another client can ignore it.
+
+`format` is `"bluray"` for a Blu-ray image, else `null`. A Blu-ray's `kind` is `"dvd"`: it plays the same way, with
+its menus. It never resumes (`resume` is ignored). The `menu` command opens the disc's pop-up menu, and `return`
+answers 400.
 
 ### `GET /api/player`
 
@@ -111,6 +115,7 @@ What is open now:
   "title": "Disc title",
   "id": "3dca5f54c298",
   "kind": "dvd",
+  "format": null,
   "resume": true,
   "resume_at": 2535
 }
@@ -173,7 +178,7 @@ Body: `{"action": "...", "value": ...}`. Returns `{"ok": true}`, or `{"error": "
 | `volume` | 0-100 | Volume |
 | `audio` | id from `status.audio` | DVD audio track |
 | `subtitle` | id from `status.subtitles`, `-1` to hide | DVD subtitles |
-| `menu` | none | DVD main menu |
+| `menu` | none | DVD main menu. Blu-ray: the disc's pop-up menu (discs refuse the main menu during the film; the pop-up menu usually leads back to it) |
 | `return` | none | DVD: the menu of what is playing (the Root menu of its title set), as the Menu key of a DVD remote. The disc decides which menu: often the one the film or extra was started from |
 | `nav` | `up`, `down`, `left`, `right`, `activate` | Move in a DVD menu (VLC remote interface). Useful when the video has no keyboard focus |
 
