@@ -49,6 +49,31 @@ LUA_INTF_DIR="${HOME:-/home/neko}/.local/share/vlc/lua/intf"
 mkdir -p "$LUA_INTF_DIR" && cp "$(dirname "$0")/streamiso.lua" "$LUA_INTF_DIR/" \
   || echo "[launcher] could not install streamiso.lua: no Blu-ray pop-up menu"
 
+# The audio and subtitle languages of a Blu-ray's main title, for the catalog's track lists. With menus, VLC
+# names every track after the disc's first clip (often a studio logo in English only) and keeps those names
+# for the film. Written to $PLAYER_INFO/bluray-tracks.json (the player-info volume, which the catalog reads):
+#   {"iso": "<path>", "audio": ["eng", "fra", ...], "subtitles": ["eng", ...]}
+PLAYER_INFO="${PLAYER_INFO:-/info}"
+bluray_tracks() {
+  local iso="$1" link="$2" out="$PLAYER_INFO/bluray-tracks.json"
+  command -v bd_list_titles >/dev/null 2>&1 && [ -d "$PLAYER_INFO" ] || return 0
+  bd_list_titles -l "$link" 2>/dev/null | awk -v iso="$iso" '
+    function list(s,   n, a, i, r) {
+      n = split(s, a, " "); r = ""
+      for (i = 1; i <= n; i++) if (a[i] ~ /^[a-z][a-z][a-z]?$/) r = r (r == "" ? "" : ",") "\"" a[i] "\""
+      return "[" r "]"
+    }
+    /^Main title:/ { main = $3 }
+    /^index:/ { cur = $2 }
+    cur != "" && cur == main && /^\tAUD:/ { sub(/^\tAUD: */, ""); aud = $0 }
+    cur != "" && cur == main && /^\tPG :/ { sub(/^\tPG : */, ""); pg = $0 }
+    END {
+      gsub(/\\/, "\\\\", iso); gsub(/"/, "\\\"", iso)
+      printf "{\"iso\":\"%s\",\"audio\":%s,\"subtitles\":%s}\n", iso, list(aud), list(pg)
+    }' > "$out.tmp" && mv "$out.tmp" "$out" \
+    && echo "[launcher] Blu-ray tracks: $(cat "$out")"
+}
+
 CUR=""
 VLC_PID=""
 
@@ -120,7 +145,8 @@ while true; do
                 "--rc-host=$RC_ADDR:$RC_PORT")
         case "$MODE" in
           dvd)  vlc "${COMMON[@]}" --extraintf=rc "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
-          bluray) vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" \
+          bluray) bluray_tracks "$TARGET" "$LINK"
+                  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" \
                     --start-paused "bluray://$LINK" & ;;
           cd)   vlc "${COMMON[@]}" --extraintf=rc --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
                     "--rawaud-fourcc=$FOURCC" "$LINK" & ;;

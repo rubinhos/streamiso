@@ -13,7 +13,8 @@ ARG TARGETARCH
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends curl ca-certificates; \
+    # libbluray-bin: bd_list_titles, which tells the launcher a Blu-ray's audio and subtitle languages
+    apt-get install -y --no-install-recommends curl ca-certificates libbluray-bin; \
     # The BD-J module is two .jar files; installing the package would also pull Debian's Java 21.
     cd /tmp; \
     apt-get download libbluray-bdj; \
@@ -32,7 +33,10 @@ RUN set -eux; \
     rm "$file"; \
     apt-get purge -y --auto-remove curl; \
     rm -rf /var/lib/apt/lists/*; \
-    /opt/java/bin/java -version
+    /opt/java/bin/java -version; \
+    # What the player tells the catalog (the player-info volume), written by the launcher as user neko
+    mkdir -p /info; \
+    chown neko:neko /info
 
 # libbluray looks for Java here
 ENV JAVA_HOME=/opt/java

@@ -447,7 +447,9 @@ What to expect:
   VLC interface, runs it. The bar has no Return button for Blu-ray.
 - **No resume.** The disc's own program picks what plays, so a saved position could not be found again: a Blu-ray
   always starts from the beginning.
-- **Seeking, chapters, audio and subtitle tracks** work during the film.
+- **Seeking, chapters, audio and subtitle tracks** work during the film. With menus, VLC names every track after the
+  disc's first clip (often English only), so the player reads the languages of the disc's main title with
+  `bd_list_titles` when it opens the disc, and the catalog names the tracks with them (the `player-info` volume).
 - **BD-Live (internet extras) is off,** and the menu's BD-Live item does nothing.
 - **Protected images do not play.** VLC would need the disc's AACS keys.
 - **Menus vary by disc.** BD-J support in VLC 3 is incomplete, so a disc may still open without its menu or stop on a

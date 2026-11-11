@@ -345,6 +345,23 @@ func (p *Playback) Info() map[string]any {
 	return out
 }
 
+// nameBlurayTracks gives a Blu-ray's tracks their real languages. With menus, VLC names every track after
+// the disc's first clip (often a studio logo in English only) and keeps those names for the film, although
+// choosing a track does pick the right one. The player reads the languages of the disc's main title when it
+// opens it; they are applied only when their number matches the tracks listed.
+func (p *Playback) nameBlurayTracks(d *domain.Disc, st map[string]any) {
+	audio, subtitles, ok := p.state.BlurayTracks(d.Path)
+	if !ok {
+		return
+	}
+	if tracks, isList := st["audio"].([]map[string]any); isList {
+		st["audio"] = domain.RelabelTracks(tracks, audio)
+	}
+	if tracks, isList := st["subtitles"].([]map[string]any); isList {
+		st["subtitles"] = domain.RelabelTracks(tracks, subtitles)
+	}
+}
+
 // Status is the player's state; it also saves where the disc is, for resuming.
 func (p *Playback) Status() (map[string]any, error) {
 	if p.state.Read() == "" {
@@ -366,6 +383,9 @@ func (p *Playback) Status() (map[string]any, error) {
 		st, err = p.player.Status()
 		if err == nil && d != nil && (st["state"] == "playing" || st["state"] == "paused") {
 			p.rememberPosition(d, st["time"], st["length"], st["title"])
+		}
+		if err == nil && d != nil && d.Format == "bluray" {
+			p.nameBlurayTracks(d, st)
 		}
 	}
 	if err != nil {

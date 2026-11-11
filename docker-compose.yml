@@ -60,6 +60,8 @@ services:
       - "./neko/vlc.conf:/etc/neko/supervisord/vlc.conf:ro"
       - "./neko:/opt/streamiso:ro"
       - "hls:/hls"
+      # What the player tells the catalog: a Blu-ray's audio and subtitle languages (see neko/launcher.sh)
+      - "player-info:/info"
 
   # Library with covers, metadata editing, and the API that drives the player. The image holds the Go service
   # (catalog/) and the web page built from web/, so it is built from the repository root.
@@ -99,7 +101,10 @@ services:
       - "./data:/data"
       - "./state:/state"
       - "hls:/hls"
+      - "player-info:/info:ro"
 
 volumes:
   # The plain video's playlist and last few segments, written by Neko and served by the catalog
   hls:
+  # Written by the player for the catalog (bluray-tracks.json)
+  player-info:

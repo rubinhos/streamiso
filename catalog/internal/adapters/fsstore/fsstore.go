@@ -4,6 +4,7 @@
 package fsstore
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -203,6 +204,24 @@ func (st *State) Read() string {
 		return ""
 	}
 	return compat.Strip(string(data))
+}
+
+// BlurayTracks reads bluray-tracks.json, which the player's launcher writes to the player-info volume when it
+// opens a Blu-ray: {"iso": path, "audio": [codes], "subtitles": [codes]}. ok is false if it is about another disc.
+func (st *State) BlurayTracks(iso string) (audio, subtitles []string, ok bool) {
+	data, err := os.ReadFile(filepath.Join(st.cfg.PlayerInfoDir, "bluray-tracks.json"))
+	if err != nil {
+		return nil, nil, false
+	}
+	var v struct {
+		ISO       string   `json:"iso"`
+		Audio     []string `json:"audio"`
+		Subtitles []string `json:"subtitles"`
+	}
+	if json.Unmarshal(data, &v) != nil || v.ISO != iso {
+		return nil, nil, false
+	}
+	return v.Audio, v.Subtitles, true
 }
 
 // Signal writes "<sequence> <command>" to the file "command" next to the state file. The sequence (the time

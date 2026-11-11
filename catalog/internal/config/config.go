@@ -22,6 +22,7 @@ type Config struct {
 	NekoUser, NekoPassword         string
 	NekoInternalURL, NekoAdminPass string
 	HLSDir                         string
+	PlayerInfoDir                  string // what the player writes for the catalog (the player-info volume)
 	CORSOrigins                    []string
 	TMDBKey, TMDBLanguage          string
 	TMDBAPI, TMDBImg               string
@@ -80,6 +81,7 @@ func Load() (Config, error) {
 	c.NekoInternalURL = strings.TrimRight(env("NEKO_INTERNAL_URL", "http://neko:8080"), "/")
 	c.NekoAdminPass = env("NEKO_ADMIN_PASSWORD", "")
 	c.HLSDir = env("HLS_DIR", "/hls")
+	c.PlayerInfoDir = env("PLAYER_INFO_DIR", "/info")
 	for _, o := range strings.Split(env("CORS_ORIGIN", ""), ",") {
 		if o = compat.Strip(o); o != "" {
 			c.CORSOrigins = append(c.CORSOrigins, o)

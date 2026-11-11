@@ -44,6 +44,9 @@ type PlayerState interface {
 	// Signal passes a command to the player that its remote-control port cannot carry ("popup": a
 	// Blu-ray's pop-up menu). The player container watches it too (neko/streamiso.lua).
 	Signal(command string) error
+	// BlurayTracks is what the player found on the Blu-ray image at iso: the ISO 639-2 languages of its main
+	// title's audio and subtitle tracks, in order (VLC names them wrongly when it plays with menus).
+	BlurayTracks(iso string) (audio, subtitles []string, ok bool)
 }
 
 // Covers holds the covers: the ones the user uploaded (by fingerprint) and the downloaded ones (by id).
