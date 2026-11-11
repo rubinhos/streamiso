@@ -112,6 +112,11 @@ type PlainVideo interface {
 	File(name string) string // the playlist or a segment, or ""; counts as watching
 }
 
+// Screen is the size of the screen VLC draws on and Neko streams (see BLURAY_RESOLUTION in the README).
+type Screen interface {
+	SetScreenSize(width, height int) error
+}
+
 // HTTPError is an answer with an error status from an outside service.
 type HTTPError struct {
 	Code int

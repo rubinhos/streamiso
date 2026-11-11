@@ -286,6 +286,8 @@ WebRTC. So the picture you see depends on these `.env` settings, not on VLC:
 | `STREAM_RESOLUTION` | `1024x576` | Size of the screen VLC draws on. `1024x576` is 16:9 at the height of a DVD (720x480 NTSC, 720x576 PAL), so it keeps all the disc's detail. A bigger screen adds none: it scales the picture up on the server instead of on the TV, costs more CPU and spreads the same bit rate over more pixels |
 | `STREAM_FPS` | `30` | Frames per second. `30` suits NTSC discs, `25` suits PAL discs |
 | `STREAM_BITRATE` | `4000` | Video bit rate in kbit/s. Raise it if fast scenes show blocks or blur. Neko's own default is about 2000 |
+| `BLURAY_RESOLUTION` | `1920x1080` | The screen size while a Blu-ray plays: the catalog switches to it when one opens, and back to `STREAM_RESOLUTION` for any other disc, through Neko's API (it needs `NEKO_ADMIN_PASSWORD`). A Blu-ray is 1920x1080, so here a bigger screen does add detail. Empty keeps one size for every disc. It must be a size Neko's screen offers (1920x1080, 1280x720 and 1024x576 are) |
+| `BLURAY_BITRATE` | `8000` | Video bit rate in kbit/s whenever the screen is taller than 720 lines (a Blu-ray at 1920x1080). Measured with one viewer, a Blu-ray film takes about 4.5 server cores at 1920x1080 and 10000 kbit/s, and about 2 at 1280x720: the server has no GPU, so VLC draws the picture in software (OpenGL, the only VLC output that shows Java menus) |
 | `HLS_BITRATE` | `2500` | Video bit rate in kbit/s of the plain video (HLS) for TVs that cannot use WebRTC. See below |
 | `DVD_DEINTERLACE` | `yadif` | How VLC removes the combing of interlaced DVDs: `yadif`, `yadif2x` (smoother, twice the frames, more CPU), `blend`, `bob`, or `off`. Discs flagged as progressive are left alone |
 

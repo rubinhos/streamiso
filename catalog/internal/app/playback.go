@@ -27,6 +27,10 @@ type Playback struct {
 	catalog *Catalog
 	library *Library
 
+	// The screen VLC draws on: a Blu-ray gets its own size (BLURAY_RESOLUTION), the other discs the usual one.
+	screen           ports.Screen
+	discSize, bdSize [2]int
+
 	// pending is what the player still has to do for the disc that was just opened. VLC opens
 	// paused, so the first seconds are not lost before the viewer's audio and video connect.
 	pendMu  sync.Mutex
@@ -41,6 +45,28 @@ type Playback struct {
 func NewPlayback(player ports.Player, state ports.PlayerState, resume ports.Resume, covers ports.Covers,
 	video ports.PlainVideo, catalog *Catalog, library *Library) *Playback {
 	return &Playback{player: player, state: state, resume: resume, covers: covers, video: video, catalog: catalog, library: library}
+}
+
+// UseScreen lets Play give a Blu-ray its own screen size (bluray, e.g. 1920x1080) and the other discs the usual
+// one (disc). With no bluray size, the screen is never changed.
+func (p *Playback) UseScreen(screen ports.Screen, disc, bluray [2]int) {
+	p.screen, p.discSize, p.bdSize = screen, disc, bluray
+}
+
+// fitScreen sets the screen size for the disc about to open. A Blu-ray is 1920x1080, so a bigger screen adds
+// detail; a DVD is at most 720x576, where it would only cost more. Neko rebuilds its encoding at the new size,
+// and the bit rate follows it (see NEKO_CAPTURE_VIDEO_PIPELINES in docker-compose.yml).
+func (p *Playback) fitScreen(d *domain.Disc) {
+	if p.screen == nil || p.bdSize[0] == 0 || p.discSize[0] == 0 {
+		return
+	}
+	size := p.discSize
+	if d.Format == "bluray" {
+		size = p.bdSize
+	}
+	if err := p.screen.SetScreenSize(size[0], size[1]); err != nil {
+		log.Printf("WARNING: Screen size %dx%d: %v", size[0], size[1], err)
+	}
 }
 
 func (p *Playback) pendingFor(d *domain.Disc) (wait bool, res *resumeAt, ok bool) {
@@ -306,6 +332,7 @@ func (p *Playback) Play(d *domain.Disc, resume bool) (map[string]any, error) {
 	p.pendMu.Lock()
 	p.pending.set, p.pending.State, p.pending.Wait, p.pending.Resume = true, d.State, true, res
 	p.pendMu.Unlock()
+	p.fitScreen(d) // before VLC starts, so it opens at the right size
 	if err := p.state.Write(d.State); err != nil {
 		return nil, err
 	}

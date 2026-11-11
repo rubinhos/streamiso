@@ -5,5 +5,6 @@ services:
   neko:
     environment:
       NEKO_CAPTURE_VIDEO_CODEC: "vp8"
-      # Neko 3's default VP8 pipeline, with the frame rate and bit rate (kbit/s) taken from .env.
-      NEKO_CAPTURE_VIDEO_PIPELINES: '{"main":{"fps":${STREAM_FPS:-30},"gst_encoder":"vp8enc","gst_params":{"target-bitrate":"round(${STREAM_BITRATE:-4000} * 1000)","cpu-used":"4","end-usage":"cbr","threads":"4","deadline":"1","undershoot":"95","buffer-size":"12288","buffer-initial-size":"6144","buffer-optimal-size":"9216","keyframe-max-dist":"${STREAM_FPS:-30}","min-quantizer":"4","max-quantizer":"20"}}}'
+      # Neko 3's default VP8 pipeline, with the frame rate and bit rate (kbit/s) taken from .env. Taller than 720
+      # lines (a Blu-ray at BLURAY_RESOLUTION), the bit rate is BLURAY_BITRATE.
+      NEKO_CAPTURE_VIDEO_PIPELINES: '{"main":{"fps":${STREAM_FPS:-30},"gst_encoder":"vp8enc","gst_params":{"target-bitrate":"round((height > 720 ? ${BLURAY_BITRATE:-8000} : ${STREAM_BITRATE:-4000}) * 1000)","cpu-used":"4","end-usage":"cbr","threads":"4","deadline":"1","undershoot":"95","buffer-size":"12288","buffer-initial-size":"6144","buffer-optimal-size":"9216","keyframe-max-dist":"${STREAM_FPS:-30}","min-quantizer":"4","max-quantizer":"20"}}}'

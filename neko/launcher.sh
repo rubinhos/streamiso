@@ -145,9 +145,12 @@ while true; do
                 "--rc-host=$RC_ADDR:$RC_PORT")
         case "$MODE" in
           dvd)  vlc "${COMMON[@]}" --extraintf=rc "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
+          # VLC keeps its OpenGL output, although with no GPU it is drawn in software (about 2.4 cores at
+          # 1920x1080, against 0.6 for --vout=xcb_x11): only OpenGL shows the disc's Java menus, which VLC 3's
+          # other outputs fail to blend ("blending BGRA to I420 failed").
           bluray) bluray_tracks "$TARGET" "$LINK"
-                  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" \
-                    --start-paused "bluray://$LINK" & ;;
+                  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso \
+                    "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "bluray://$LINK" & ;;
           cd)   vlc "${COMMON[@]}" --extraintf=rc --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
                     "--rawaud-fourcc=$FOURCC" "$LINK" & ;;
           file) vlc "${COMMON[@]}" --extraintf=rc "$LINK" & ;;

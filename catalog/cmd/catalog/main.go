@@ -53,6 +53,15 @@ func main() {
 	catalog.OnScan = metadata.EnrichAll
 	library := app.NewLibrary(store.Library(), store.Metadata(), store.Resume(), store.Covers(), store.State(), catalog, metadata)
 	playback := app.NewPlayback(player, store.State(), store.Resume(), store.Covers(), video, catalog, library)
+	if bw, bh, ok := neko.ParseSize(cfg.BlurayResolution); ok {
+		if dw, dh, ok := neko.ParseSize(cfg.StreamResolution); ok {
+			playback.UseScreen(video, [2]int{dw, dh}, [2]int{bw, bh})
+		} else {
+			log.Printf("WARNING: BLURAY_RESOLUTION needs STREAM_RESOLUTION too: the screen keeps one size")
+		}
+	} else if cfg.BlurayResolution != "" {
+		log.Printf("WARNING: BLURAY_RESOLUTION %q is not WIDTHxHEIGHT: the screen keeps one size", cfg.BlurayResolution)
+	}
 
 	api := httpapi.New(cfg, catalog, library, metadata, playback)
 	addr := "0.0.0.0:" + cfg.Port

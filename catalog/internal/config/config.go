@@ -14,20 +14,21 @@ import (
 const Version = "0.6.0"
 
 type Config struct {
-	DVDDir, CDDir, BlurayDir       string
-	DataDir, StateFile             string
-	VLCHost                        string
-	VLCPort                        int
-	NekoPort, NekoPublicURL        string
-	NekoUser, NekoPassword         string
-	NekoInternalURL, NekoAdminPass string
-	HLSDir                         string
-	PlayerInfoDir                  string // what the player writes for the catalog (the player-info volume)
-	CORSOrigins                    []string
-	TMDBKey, TMDBLanguage          string
-	TMDBAPI, TMDBImg               string
-	MBURL, CAAURL, MBContact       string
-	Port, StaticDir                string
+	DVDDir, CDDir, BlurayDir           string
+	DataDir, StateFile                 string
+	VLCHost                            string
+	VLCPort                            int
+	NekoPort, NekoPublicURL            string
+	NekoUser, NekoPassword             string
+	NekoInternalURL, NekoAdminPass     string
+	HLSDir                             string
+	PlayerInfoDir                      string // what the player writes for the catalog (the player-info volume)
+	StreamResolution, BlurayResolution string // the screen for discs, and for Blu-ray ("" keeps one size)
+	CORSOrigins                        []string
+	TMDBKey, TMDBLanguage              string
+	TMDBAPI, TMDBImg                   string
+	MBURL, CAAURL, MBContact           string
+	Port, StaticDir                    string
 
 	// Under DataDir
 	CoverDir       string // covers downloaded from TMDB or the Cover Art Archive
@@ -82,6 +83,8 @@ func Load() (Config, error) {
 	c.NekoAdminPass = env("NEKO_ADMIN_PASSWORD", "")
 	c.HLSDir = env("HLS_DIR", "/hls")
 	c.PlayerInfoDir = env("PLAYER_INFO_DIR", "/info")
+	c.StreamResolution = env("STREAM_RESOLUTION", "")
+	c.BlurayResolution = env("BLURAY_RESOLUTION", "")
 	for _, o := range strings.Split(env("CORS_ORIGIN", ""), ",") {
 		if o = compat.Strip(o); o != "" {
 			c.CORSOrigins = append(c.CORSOrigins, o)
