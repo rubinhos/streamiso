@@ -208,7 +208,9 @@ func (s *Server) Handler() http.Handler {
 				htmlError(w, 500)
 			}
 		}()
-		s.addCORS(w, r)
+		if !s.guard(w, r) {
+			return
+		}
 		if r.Method == http.MethodOptions { // CORS preflights
 			if allow := allowedMethods(mux, r); allow != "" {
 				w.Header().Set("Allow", allow)
@@ -250,35 +252,4 @@ func allowedMethods(mux *http.ServeMux, r *http.Request) string {
 	}
 	sort.Strings(out)
 	return strings.Join(append(out, "OPTIONS"), ", ")
-}
-
-// addCORS lets other apps (the TV apps) call the API from the origins in CORS_ORIGIN.
-func (s *Server) addCORS(w http.ResponseWriter, r *http.Request) {
-	if len(s.cfg.CORSOrigins) == 0 || !strings.HasPrefix(r.URL.Path, "/api/") {
-		return
-	}
-	origin := r.Header.Get("Origin")
-	allowed := false
-	for _, o := range s.cfg.CORSOrigins {
-		if o == "*" {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		for _, o := range s.cfg.CORSOrigins {
-			if o == origin {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Add("Vary", "Origin")
-				allowed = true
-				break
-			}
-		}
-	}
-	if allowed {
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Max-Age", "600")
-	}
 }
