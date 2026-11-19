@@ -65,9 +65,8 @@ func main() {
 	playback.UseDVDMenus(&media.DVDReader{MenuLanguage: cfg.DVDMenuLanguage})
 
 	api := httpapi.New(cfg, catalog, library, metadata, playback)
-	if api.LegacyOpenCORS() {
-		log.Printf("WARNING: CORS_ORIGIN lists \"null\" or \"*\": any website opened on this network can use the API. " +
-			"Set API_KEY in .env and type it in the TV apps instead (see the README)")
+	if cfg.APIKey == "" {
+		log.Printf("No API_KEY: the API only answers this server's own pages and native apps, not the TV apps")
 	}
 	addr := "0.0.0.0:" + cfg.Port
 	log.Printf("StreamISO catalog %s listening at http://%s", config.Version, addr)

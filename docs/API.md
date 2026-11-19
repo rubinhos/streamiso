@@ -14,17 +14,14 @@ opened on the same network, cannot use it. A request under `/api/` is accepted w
 
 - it has **no `Origin`**: a native app or a script (`curl`), or a same-origin `GET`;
 - its `Origin` is **this server**, as the browser reached it (`Host`, or `X-Forwarded-Host` behind a reverse proxy);
-- its `Origin` is **listed** by name in `CORS_ORIGIN` (comma-separated), e.g. `https://remote.example`;
 - it carries **`API_KEY`**, in the `X-StreamISO-Key` header, or as `?key=` for `navigator.sendBeacon`, which
   cannot set headers. This is the way for apps that run from a `file://` URL (the TV apps), which send the
   origin `null`. Any website can send `null` too, from a sandboxed frame, so the origin alone proves nothing.
 
 Anything else gets `403` with `{"error": ...}`. With `API_KEY` set, every origin gets the CORS headers, so an app
-can read that error ("Missing or wrong API key"); without it, only listed origins do.
+can read that error ("Missing or wrong API key"); without it, no other origin gets them.
 
-Before `API_KEY` existed, the TV apps needed `CORS_ORIGIN=null`. That still works while `API_KEY` is empty, but it
-lets any website in, and the catalog logs a warning. `<img>` and `<video>` send no `Origin`, so covers and the
-plain video load from anywhere.
+`<img>` and `<video>` send no `Origin`, so covers and the plain video load from anywhere.
 
 ## The playback flow
 

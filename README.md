@@ -272,7 +272,6 @@ Test in a desktop browser first, then on the TV.
 | `NEKO_PORT` | `8081` | Player (Neko) web port |
 | `NEKO_PUBLIC_URL` | empty | Player URL if it sits behind a reverse proxy |
 | `API_KEY` | empty | Key the TV apps send to call the API (type it in their Settings). Without it, the API refuses other origins. See [`docs/API.md`](docs/API.md#who-may-call-the-api) |
-| `CORS_ORIGIN` | empty | Origins (comma list) that may call the API without the key. `null` and `*` let any website in, so they only work without `API_KEY` |
 | `TMDB_API_KEY` | empty | Enables automatic covers, synopses and genres |
 | `TMDB_LANGUAGE` | `en-US` | Language of TMDB results (e.g. `pt-BR`, `es-ES`). A title is found by its name in any language; its synopsis comes in this language, or in English when TMDB has no translation. After a change, the synopses and genres already found are fetched again in the new language (the match and the cover stay) |
 | `MUSICBRAINZ_CONTACT` | empty | E-mail or project URL sent in the User-Agent, as MusicBrainz asks |
