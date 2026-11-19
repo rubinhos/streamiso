@@ -167,3 +167,42 @@ body.nofs #full { display: none; }   /* no fullscreen here (Android WebView, iPh
   button { width: 42px; height: 42px; }
   body.ui-open #handle { bottom: 100px; }
 }
+
+/* ---- labels of icon buttons: on hover, on keyboard focus, and while a finger holds the button ---- */
+[data-tip] { position: relative; }
+[data-tip]::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  padding: 5px 10px; border-radius: 6px; background: rgba(0, 0, 0, .88); color: var(--fg); font-size: 13px; font-weight: 500;
+  white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 6; }
+@media (hover: hover) { [data-tip]:hover::after { opacity: 1; } }
+[data-tip]:focus-visible::after, [data-tip].tip-show::after { opacity: 1; }
+
+/* ---- the menu pad: arrows, OK and Menu for a disc's menus (NavPad.tsx) ---- */
+#navpad { z-index: 4; position: fixed; right: 24px; bottom: 120px; width: 176px; padding: 0 10px 10px; box-sizing: border-box;
+  border-radius: 18px; background: rgba(10, 12, 18, .55); box-shadow: 0 6px 24px rgba(0, 0, 0, .45); opacity: .82;
+  transition: opacity .15s; touch-action: none; }
+#navpad:hover, #navpad:focus-within { opacity: 1; }
+#navpad .np-grip { height: 22px; display: flex; align-items: center; justify-content: center; cursor: grab; }
+#navpad .np-grip span { width: 36px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .45); }
+#navpad .np-grip:active { cursor: grabbing; }
+#navpad .np-cross { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 2px;
+  justify-content: center; }
+#navpad .np-key { width: 52px; height: 52px; border-radius: 12px; background: rgba(255, 255, 255, .1); opacity: 1; }
+#navpad .np-key:hover { background: rgba(255, 255, 255, .22); }
+#navpad .np-key svg { width: 30px; height: 30px; }
+#navpad .np-up { grid-column: 2; grid-row: 1; }
+#navpad .np-left { grid-column: 1; grid-row: 2; }
+#navpad .np-activate { grid-column: 2; grid-row: 2; border-radius: 50%; background: var(--accent); color: #111; font-weight: 700; }
+#navpad .np-activate:hover { background: #ffc94a; }
+#navpad .np-right { grid-column: 3; grid-row: 2; }
+#navpad .np-down { grid-column: 2; grid-row: 3; }
+#navpad .np-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+#navpad .np-menu { width: auto; height: 38px; padding: 0 14px; border-radius: 19px; background: rgba(255, 255, 255, .1);
+  font-weight: 600; font-size: 14px; }
+#navpad .np-menu svg { width: 20px; height: 20px; margin-right: 6px; }
+#navpad .np-close { width: 38px; height: 38px; }
+#navpad .np-close svg { width: 22px; height: 22px; }
+#navpad-toggle[aria-pressed="true"] { color: var(--accent); }
+body.audio #navpad-toggle { display: none; }
+@media (max-width: 700px) {
+  #navpad { right: 12px; bottom: 112px; }
+}

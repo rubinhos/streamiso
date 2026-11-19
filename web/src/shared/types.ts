@@ -102,6 +102,9 @@ export interface TrackChoice {
 }
 
 /** GET /api/player/status. */
+/** A disc menu, as the API names it ("popup": a Blu-ray's pop-up menu). */
+export type DVDMenuId = "title" | "root" | "chapters" | "audio" | "subtitles" | "angle" | "popup";
+
 export interface PlayerStatus {
   state: string;
   time?: number | null;
@@ -111,6 +114,8 @@ export interface PlayerStatus {
   title?: number | null;
   audio?: TrackChoice[];
   subtitles?: TrackChoice[];
+  /** The disc's menus that can be opened now (see docs/API.md) */
+  menus?: DVDMenuId[];
   /** CDs */
   kind?: Kind;
   track?: number;

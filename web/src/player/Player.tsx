@@ -1,9 +1,11 @@
 // The player page as it looks: the stream (Neko's page in an iframe), the CD view, the loading cover, the
 // start button and the controls. The logic is in PlayerController.
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { TrackChoice } from "../shared/types";
+import type { DVDMenuId, TrackChoice } from "../shared/types";
 import { fmtTime } from "../shared/format";
 import type { PlayerController } from "./controller";
+import { NavPad } from "./NavPad";
+import { holdTip } from "./tip";
 
 const ICON = {
   play: <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>,
@@ -13,6 +15,17 @@ const ICON = {
   mute: <svg viewBox="0 0 24 24"><path d="M16.5 12A4.5 4.5 0 0 0 14 8v2.2l2.4 2.4c.1-.2.1-.4.1-.6zM19 12c0 .9-.2 1.8-.5 2.6l1.5 1.5A9 9 0 0 0 21 12a9 9 0 0 0-7-8.8v2.1c2.9.9 5 3.5 5 6.7zM4.3 3L3 4.3 7.7 9H3v6h4l5 5v-6.7l4.3 4.3c-.7.5-1.4.9-2.3 1.2v2.1a9 9 0 0 0 3.7-1.8l2 2L21 19.7l-9-9zM12 4L9.9 6.1 12 8.2z" /></svg>,
   fs: <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7zm-2-4h2V7h3V5H5zm12 7h-3v2h5v-5h-2zM14 5v2h3v3h2V5z" /></svg>,
   fsExit: <svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5zm3-8H5v2h5V5H8zm6 11h2v-3h3v-2h-5zm2-11V5h-2v5h5V8z" /></svg>,
+};
+
+// The names of a disc's menus (docs/API.md). "root" is the menu of the part of a DVD playing (film or extra).
+const MENU_NAME: Record<DVDMenuId, string> = {
+  title: "Main menu",
+  root: "Menu of this part",
+  chapters: "Chapters",
+  audio: "Audio menu",
+  subtitles: "Subtitles menu",
+  angle: "Angles",
+  popup: "Pop-up menu",
 };
 
 function Menu({ heading, list, onPick }: { heading: string; list: TrackChoice[]; onPick(t: TrackChoice): void }) {
@@ -82,6 +95,9 @@ export function Player({ ctl }: { ctl: PlayerController }) {
     setTip({ pct: p, text: fmtTime((p / 100) * length) });
   }
 
+  const padOn = ctl.navPadOn();
+  // More than one menu (a Blu-ray, or a DVD whose IFO files list more): the Disc menu button lists them
+  const menus = st.menus && st.menus.length > 1 ? st.menus : null;
   const handleLabel = s.uiOpen ? "Hide controls" : "Show controls";
   const fsLabel = s.fullscreen ? "Exit fullscreen" : "Fullscreen";
   const over = (o: boolean) => (e: PointerEvent) => ctl.pointerOverUi(o, e.pointerType);
@@ -226,14 +242,19 @@ export function Player({ ctl }: { ctl: PlayerController }) {
 
             <div class="spacer" />
 
-            <button id="dvdreturn" class="label hide-sm" type="button"
-              title="Back to the menu of what is playing (the disc decides which: often the one it was started from)" onClick={() => ctl.returnToMenu()}>
-              <svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>Return
+            {/* Icon buttons: their label shows on hover, keyboard focus or a held finger (tip.ts) */}
+            <button id="navpad-toggle" type="button" aria-pressed={padOn ? "true" : "false"} aria-label="Menu pad"
+              data-tip={padOn ? "Hide the menu pad" : "Menu pad: arrows and OK"} onClick={() => ctl.toggleNavPad()} {...holdTip}>
+              <svg viewBox="0 0 24 24"><path d="M9 2h6v7H9zm0 13h6v7H9zM2 9h7v6H2zm13 0h7v6h-7zm-3 1a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" /></svg>
             </button>
-            <button id="dvdmenu" class="label hide-sm" type="button"
-              title={s.bluray ? "Open the disc's pop-up menu (it usually has a way back to the main menu)" : "Go to the DVD's main menu"}
-              onClick={() => ctl.menu()}>
-              <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>Disc menu
+            <button id="dvdreturn" class="hide-sm" type="button" aria-label="Return" data-tip="Return: the menu of what is playing"
+              onClick={() => ctl.returnToMenu()} {...holdTip}>
+              <svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" /></svg>
+            </button>
+            <button id="dvdmenu" class="hide-sm" type="button" aria-label="Disc menu"
+              data-tip={menus ? "Disc menus" : "Disc menu"}
+              aria-haspopup={menus ? "true" : undefined} onClick={() => (menus ? ctl.togglePop("menus") : ctl.menu())} {...holdTip}>
+              <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" /></svg>
             </button>
             <button id="audio" type="button" title="Audio" aria-label="Audio track" disabled={!(st.audio && st.audio.length)} onClick={() => ctl.togglePop("audio")}>
               <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z" /></svg>
@@ -245,6 +266,12 @@ export function Player({ ctl }: { ctl: PlayerController }) {
               {s.fullscreen ? ICON.fsExit : ICON.fs}
             </button>
 
+            <div class={"pop" + (s.pop === "menus" && menus ? " open" : "")} id="pop-menus" style={{ right: "138px" }}>
+              <h4>Disc menus</h4>
+              {(menus || []).map((id) => (
+                <button key={id} type="button" class="item" onClick={() => ctl.menu(id)}>{MENU_NAME[id]}</button>
+              ))}
+            </div>
             <div class={"pop" + (s.pop === "audio" ? " open" : "")} id="pop-audio" style={{ right: "92px" }}>
               <Menu heading="Audio" list={st.audio || []} onPick={(t) => ctl.pickAudio(t)} />
             </div>
@@ -254,6 +281,8 @@ export function Player({ ctl }: { ctl: PlayerController }) {
           </div>
         </div>
       </div>
+
+      {padOn && !cd && s.started && !s.bdOpening && <NavPad ctl={ctl} />}
 
       <button id="handle" type="button" title={handleLabel} aria-label={handleLabel} aria-expanded={s.uiOpen ? "true" : "false"} aria-controls="ui" onClick={() => ctl.handle()}>
         <svg viewBox="0 0 24 24"><path d="M7.4 15.4 12 10.8l4.6 4.6L18 14l-6-6-6 6z" /></svg>

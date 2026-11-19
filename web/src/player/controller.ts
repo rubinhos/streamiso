@@ -20,7 +20,7 @@ export interface State {
   /** Keeps the bar steady right after a seek. */
   hold: { time: number; until: number } | null;
   uiOpen: boolean;
-  pop: "audio" | "subs" | null;
+  pop: "audio" | "subs" | "menus" | null;
   needStart: boolean;
   started: boolean;
   /**
@@ -36,6 +36,40 @@ export interface State {
   fullscreen: boolean;
   /** CDs: the sound is blocked until the viewer clicks Neko's own play button. */
   unlock: boolean;
+  /** The floating menu pad: the viewer's choice (null: none yet), and where it was dragged to (null: its corner). */
+  navPadPref: boolean | null;
+  navPadPos: NavPadPos | null;
+}
+
+export interface NavPadPos {
+  x: number;
+  y: number;
+}
+
+export type NavDirection = "up" | "down" | "left" | "right" | "activate";
+
+// The pad's settings are a convenience of this browser: nothing breaks when storage is blocked.
+function readStored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeStored(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+function storedPadPos(): NavPadPos | null {
+  try {
+    const p = JSON.parse(readStored("streamisoNavPadPos") || "null");
+    return p && typeof p.x === "number" && typeof p.y === "number" ? { x: p.x, y: p.y } : null;
+  } catch {
+    return null;
+  }
 }
 
 interface Answer<T> {
@@ -59,6 +93,8 @@ export class PlayerController {
     title: "", kind: "dvd", bluray: false, artist: "", cover: "", tracks: [], frameSrc: "", status: null, volume: 100,
     dragging: false, dragPct: 0, hold: null, uiOpen: true, pop: null, needStart: false, started: false, bdOpening: false, resumeAt: 0,
     loadingDone: false, toast: "", toastShown: false, fsSupported: false, fullscreen: false, unlock: false,
+    navPadPref: readStored("streamisoNavPad") === "on" ? true : readStored("streamisoNavPad") === "off" ? false : null,
+    navPadPos: storedPadPos(),
   };
 
   private listeners: (() => void)[] = [];
@@ -260,9 +296,39 @@ export class PlayerController {
     }
   }
 
-  menu(): void {
-    this.cmd("menu");
+  /** A menu by its id from the status (see docs/API.md), or the disc's default one (a Blu-ray's pop-up menu). */
+  menu(id?: string): void {
+    if (id) this.cmd("menu", id);
+    else this.cmd("menu");
+    this.closePop();
     this.refocusVideo();
+  }
+
+  // ------------------------------------------------------------------ menu pad
+  /**
+   * The floating pad that moves in a disc's menu: the viewer's choice, else shown. A Blu-ray's menus are Java
+   * programs that ignore the mouse and touch; a DVD's take them, but their buttons are small on a phone.
+   */
+  navPadOn(): boolean {
+    return this.s.navPadPref !== null ? this.s.navPadPref : true;
+  }
+
+  toggleNavPad(): void {
+    const on = !this.navPadOn();
+    this.set({ navPadPref: on });
+    writeStored("streamisoNavPad", on ? "on" : "off");
+    this.refocusVideo();
+  }
+
+  /** A pad key: goes to the disc through the player, as the arrows and OK of a remote. */
+  nav(direction: NavDirection): void {
+    this.cmd("nav", direction);
+    this.refocusVideo(); // the keyboard keeps going to the video
+  }
+
+  moveNavPad(pos: NavPadPos | null): void {
+    this.set({ navPadPos: pos });
+    writeStored("streamisoNavPadPos", JSON.stringify(pos));
   }
 
   returnToMenu(): void {
@@ -291,7 +357,7 @@ export class PlayerController {
     this.keepUi();
   }
 
-  togglePop(which: "audio" | "subs"): void {
+  togglePop(which: "audio" | "subs" | "menus"): void {
     const open = this.s.pop === which;
     this.closePop();
     if (!open) {
@@ -303,7 +369,7 @@ export class PlayerController {
   private onDocumentClick(e: MouseEvent): void {
     if (!this.s.pop) return;
     const t = e.target as HTMLElement;
-    if (t.closest && (t.closest(".pop") || t.closest("#audio") || t.closest("#subs"))) return;
+    if (t.closest && (t.closest(".pop") || t.closest("#audio") || t.closest("#subs") || t.closest("#dvdmenu"))) return;
     this.closePop();
   }
 
