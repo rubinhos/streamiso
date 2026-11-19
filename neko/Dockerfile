@@ -5,7 +5,8 @@
 # on purpose: with Debian's Java 21 or 25, libbluray 1.3.4 starts the disc's program but it stops at the
 # first network check (BD-Live), before the menu. Temurin is the Eclipse Foundation's build of OpenJDK.
 
-ARG NEKO_IMAGE=ghcr.io/m1k1o/neko/vlc:latest
+# The tested release (see docker-compose.yml, which passes the same one).
+ARG NEKO_IMAGE=ghcr.io/m1k1o/neko/vlc:3.2.0@sha256:ced2c475546f831517c910db09b94917acf5370feaf54401564a4a92ec69afa4
 FROM ${NEKO_IMAGE}
 
 ARG TEMURIN_VERSION=11.0.33+10
