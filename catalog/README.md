@@ -17,7 +17,7 @@ only point inwards.
 
 ```
                          ┌──────────────────────── internal/httpapi ───────────────────────┐
-  web page, TV apps ───▶ │  routes, JSON in and out, CORS, error pages                     │
+  web page, TV apps ───▶ │  routes, JSON in and out, who may call (Origin/API_KEY), errors │
                          └──────────────────────────────┬──────────────────────────────────┘
                                                         ▼
                          ┌────────────────────────── internal/app ─────────────────────────┐
@@ -78,4 +78,5 @@ docker run --rm -v "$PWD:/src" -w /src golang:1.24-alpine sh tools/check.sh
 It formats the imports, then runs `go vet` and `go test`. [`internal/golden`](internal/golden) checks the rules
 (titles, seasons, search queries, placeholder covers, edits, rounding, text wrapping) against
 [`testdata/golden.json`](testdata/golden.json): the answers the first version gave for the same inputs, which the
-service must keep giving.
+service must keep giving. [`internal/httpapi`](internal/httpapi) checks which callers may use the API (same
+origin, no origin, `API_KEY`), and the media and Neko adapters check Blu-ray detection, disc labels and screen sizes.

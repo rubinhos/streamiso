@@ -47,8 +47,9 @@ author, who steered the idea and tested every build on a real home server, and a
 
 What that means in practice:
 
-- It works for the author's setup, but it has had **no formal code review, no security audit and no automated test suite**.
-  Individual pieces were exercised with a real VLC, real disc images and mock servers during development; that is not the same as a test suite.
+- It works for the author's setup, but it has had **no formal code review and no security audit**, and its automated
+  tests cover only parts of it (the catalog's rules and API access in Go, the library's rules in the web page). Most
+  pieces were exercised with a real VLC, real disc images and mock servers during development.
 - The author tested the play button, DVD menus, audio CDs and resume on a Windows PC with Docker Desktop and on a phone browser (see [Running on Windows](#running-on-windows)).
   Other setups (Linux servers, TVs, other browsers) and the TMDB lookups have had less testing, and some pieces were only checked against simulated services while building.
   If something misbehaves, please open an issue with the details.
@@ -133,12 +134,13 @@ Some of the decisions behind the code, for anyone reading or contributing:
 
 | Language | Where | Lines |
 |---|---|---|
-| Go 1.24 | `catalog/cmd`, `catalog/internal`: HTTP API, use cases, rules, and the adapters for files, VLC, Neko, TMDB and MusicBrainz | ~5,460 |
-| TypeScript + Preact | `web/src`: the library and the player pages | ~2,490 |
+| Go 1.24 | `catalog/cmd`, `catalog/internal`: HTTP API, use cases, rules, and the adapters for files, VLC, Neko, TMDB and MusicBrainz | ~6,770 |
+| TypeScript + Preact | `web/src`: the library and the player pages | ~2,870 |
 | JavaScript | `neko/neko-inject.html` (bridge between the stream and the player page) | ~200 |
-| CSS | `web/src/library/library.css`, `web/src/player/player.css` | ~590 |
-| Bash | `neko/launcher.sh`, `neko/patch-neko.sh` | ~110 |
-| Config | `docker-compose.yml`, `Dockerfile`, `neko/vlc.conf` (supervisord) | ~110 |
+| CSS | `web/src/library/library.css`, `web/src/player/player.css` | ~630 |
+| Bash | `neko/launcher.sh`, `neko/patch-neko.sh` | ~220 |
+| Lua | `neko/streamiso.lua` (DVD menus and the Blu-ray pop-up menu inside VLC) | ~60 |
+| Config | `docker-compose.yml`, the Dockerfiles, `neko/vlc.conf` (supervisord) | ~240 |
 | SVG | logo and icons in `assets/` and `web/public/` | |
 
 **Tools and components**
@@ -181,7 +183,7 @@ an ISO path (open as a DVD), `cd-s16l:<bin>` or `cd-s16b:<bin>` (raw audio CD im
 (an ordinary audio file referenced by a cue sheet), or an empty file (close VLC). The launcher refuses any path outside
 `/media/` or containing `/../`.
 
-**HTTP API** (used by the web UI; there is no authentication, see [Limitations and security](#limitations-and-security))
+**HTTP API** (used by the web UI and the apps; there is no login, and pages on other origins need `API_KEY`, see [`docs/API.md`](docs/API.md#who-may-call-the-api))
 
 | Endpoint | Purpose |
 |---|---|
@@ -227,14 +229,18 @@ Running StreamISO needs only Docker: the catalog image is built with Go and Node
 
 **Done**
 - DVD ISO library, DVD playback with menus, audio CD (BIN/CUE) library and playback
+- Unprotected Blu-ray images with their menus (see [Blu-ray](#blu-ray))
 - TMDB and MusicBrainz lookups, manual "Search again", custom covers, metadata editing
-- Streaming-style player bar, resume, start button, own loading screen
+- Streaming-style player bar, menu pad, resume, start button, own loading screen
+- Plain video (HLS) for TVs whose WebRTC cannot connect
+- [Apps](#apps) for Android, Samsung (Tizen) and LG (webOS) TVs, and watching away from home through
+  [Tailscale](#watching-from-another-network-tailscale)
 - Docker Compose setup, project logo and icons
 
 **Known gaps**
 - No login (see [Limitations and security](#limitations-and-security))
 - One viewing session at a time
-- No automated tests
+- Automated tests cover only parts of the server, and it has no CI yet
 - Not yet verified against the real services in every case (see the note at the top)
 - Protected Blu-ray images, Blu-ray resume, CD images split into one file per track, and mixed-mode CDs are not
   supported
@@ -248,6 +254,8 @@ Requirements: Docker with Compose v2, and a folder of DVD ISO images and/or audi
 1. Copy `.env.example` to `.env` and set:
    - `DVD_DIR`: folder with your DVD `.iso` images, and `CD_DIR`: folder with your audio CD images (`.cue` + `.bin`). Subfolders are scanned too. They can be the same folder or different ones, and either can be left out if you have only one kind. (`MEDIA_DIR` still works as a single folder for both.)
    - `SERVER_IP`: the server's IP on your network (the address your browser/TV uses to reach it)
+   - `NEKO_PASSWORD` and `NEKO_ADMIN_PASSWORD`: any passwords of your own, instead of the defaults
+   - `API_KEY`, if you will use the TV apps (see [Apps](#apps))
 2. Start it:
 
    ```bash
@@ -503,6 +511,21 @@ Give the PC a fixed IP in your router, otherwise `SERVER_IP` goes stale when the
 **Docker inside WSL (without Docker Desktop)**: the same mirrored-networking steps apply; media folders then live under
 `/mnt/d/...`. In the default NAT mode this setup only works from the same PC, using the WSL IP (`hostname -I`) as `SERVER_IP`.
 
+## Apps
+
+Any browser works, but these apps add what a browser tab cannot (the remote's keys, full screen, a screen that stays on):
+
+| App | Repository | Server setting |
+|---|---|---|
+| Android phones | [streamiso-android](https://github.com/rubinhos/streamiso-android) | none |
+| Samsung TVs (Tizen) | [streamiso-tizen](https://github.com/rubinhos/streamiso-tizen) | `API_KEY` |
+| LG TVs (webOS) | [streamiso-webos](https://github.com/rubinhos/streamiso-webos) | `API_KEY` |
+
+The TV apps run from a packaged page, which the API only answers when it carries `API_KEY` (see
+[`docs/API.md`](docs/API.md#who-may-call-the-api)): set it in `.env` and type the same key in the app's Settings. Each
+app also takes a second address for the same server, such as its [Tailscale](#watching-from-another-network-tailscale)
+address, used when the first one does not answer, or always if you choose it.
+
 ## Watching from another network (Tailscale)
 
 StreamISO has no login of its own, so to watch away from home put it behind [Tailscale](https://tailscale.com) (a
@@ -529,6 +552,13 @@ private VPN between your own devices) instead of opening ports on the router.
    ```
 
 5. On the remote device, open `http://<tailscale-ip>:8080`. The player link follows the address you opened.
+6. In the [apps](#apps), keep the home address as the first one and type the Tailscale address
+   (`100.101.102.103:8080`) as the **second address**. With **Automatic**, the app tries the home address and moves
+   to the Tailscale one when it does not answer, so the same settings work at home and away. A TV that stays at home
+   does not need it.
+
+The phone or TV needs the Tailscale app turned on while away. A device with Tailscale on can also use the Tailscale
+address at home; it then goes through the VPN, which works but may be slower than the home network.
 
 Away from home, the server's upload speed is the limit: a Blu-ray uses `BLURAY_BITRATE` (8000 kbit/s by default) and a
 DVD `STREAM_BITRATE`. Lower them in `.env` if the picture stalls. `tailscale status` shows whether the connection is
@@ -564,7 +594,12 @@ page always opens the bar.
 **Neko's own buttons (resolution, clipboard, picture-in-picture) show up.** StreamISO opens Neko with `cast=1`, which hides them.
 If you use `NEKO_PUBLIC_URL` with a custom front page, make sure the parameter is not stripped.
 
-**Pinning the Neko version.** Set `NEKO_IMAGE` in `.env` to a specific release tag of `ghcr.io/m1k1o/neko/vlc` if a new Neko release changes behavior.
+**The Neko version.** `docker-compose.yml` pins `ghcr.io/m1k1o/neko/vlc` to the release StreamISO was tested with
+(3.2.0), because `neko/neko-inject.html` adjusts the inside of Neko's page. To try another one, set `NEKO_IMAGE` in
+`.env` and check the disc menus, the remote's keys and the start button.
+
+**The screen went black during a disc.** If VLC crashes, the launcher opens the disc again (paused: press play), up to
+three times in a row. `docker exec streamiso-neko cat /var/log/neko/streamiso-launcher.log` says why it ended.
 
 **`neko/vlc.conf` does not take effect.** It replaces the image's own file. Compare with the original:
 
@@ -587,9 +622,8 @@ image. Whether you may use it depends on your country. Unprotected images work o
 
 ## Roadmap
 
-- Samsung Tizen TV app (a thin wrapper around the web UI with remote-key handling)
 - Optional login
-- Automated tests and CI
+- More automated tests (playback, the VLC client) and CI for the server
 - Multiple simultaneous sessions (one player container per session)
 - Cover from the DVD menu frame when no image exists
 - CD images split into one file per track
@@ -613,10 +647,13 @@ streamiso/
 │   ├── src/shared/        the API client and its types
 │   └── public/            icons, logo, web app manifest
 ├── neko/                  runs inside the Neko container
-│   ├── launcher.sh        opens the chosen disc in VLC
+│   ├── Dockerfile         Neko's VLC image (pinned release) plus Java for Blu-ray menus
+│   ├── launcher.sh        opens the chosen disc in VLC, and again if VLC crashes
+│   ├── streamiso.lua      VLC interface for the disc menus the remote-control port cannot open
 │   ├── neko-inject.html   small script that reports activity to the player page
 │   ├── patch-neko.sh      applies that script at container start
 │   └── vlc.conf           supervisor config that replaces the stock VLC startup
+├── docs/API.md            the HTTP API, and who may call it
 └── assets/                logo files and screenshots
 ```
 
