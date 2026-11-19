@@ -7,7 +7,9 @@ services:
     build:
       context: ./neko
       args:
-        NEKO_IMAGE: "${NEKO_IMAGE:-ghcr.io/m1k1o/neko/vlc:latest}"
+        # Pinned: neko-inject.html relies on the inside of Neko's page, which a new release may change. To try one, set
+        # NEKO_IMAGE in .env and check the menus, the remote keys and the start button.
+        NEKO_IMAGE: "${NEKO_IMAGE:-ghcr.io/m1k1o/neko/vlc:3.2.0@sha256:ced2c475546f831517c910db09b94917acf5370feaf54401564a4a92ec69afa4}"
     image: streamiso-neko
     container_name: streamiso-neko
     restart: unless-stopped

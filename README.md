@@ -570,7 +570,7 @@ If you use `NEKO_PUBLIC_URL` with a custom front page, make sure the parameter i
 **`neko/vlc.conf` does not take effect.** It replaces the image's own file. Compare with the original:
 
 ```bash
-docker run --rm --entrypoint cat ghcr.io/m1k1o/neko/vlc:latest /etc/neko/supervisord/vlc.conf
+docker run --rm --entrypoint cat ghcr.io/m1k1o/neko/vlc:3.2.0 /etc/neko/supervisord/vlc.conf
 ```
 
 **Commercial DVD has no menu or fails to read.** Discs protected with CSS need `libdvdcss`, which is **not** included in the

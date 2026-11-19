@@ -110,6 +110,58 @@ disable_secondary_buttons
 
 echo "[launcher] watching $STATE_FILE"
 
+# Opens the state line $1 in VLC: a plain ISO path (DVD), or "<mode>:<path>" for other media:
+#   cd-s16l:<bin>  raw audio CD image, little-endian samples (starts paused: the catalog page
+#                  resumes it once the browser's audio is connected, so no start is lost)
+#   cd-s16b:<bin>  raw audio CD image, big-endian samples
+#   file:<path>    an ordinary audio file (CUE sheets that point at WAV/FLAC)
+#   bluray:<iso>   a Blu-ray image, opened with its menus. Most are Java programs (BD-J), which
+#                  the image's Java 11 runs (see neko/Dockerfile); the disc's logos and trailers
+#                  come first, so its menu shows after a minute or more, as on a Blu-ray player
+open_media() {
+  local want="$1"
+  MODE="dvd"; TARGET="$want"; FOURCC=""
+  case "$want" in
+    bluray:*)  MODE="bluray"; TARGET="${want#*:}" ;;
+    cd-s16l:*) MODE="cd"; FOURCC="s16l"; TARGET="${want#*:}" ;;
+    cd-s16b:*) MODE="cd"; FOURCC="s16b"; TARGET="${want#*:}" ;;
+    file:*)    MODE="file"; TARGET="${want#*:}" ;;
+  esac
+
+  if ! { [[ "$TARGET" == "$MEDIA_PREFIX"* ]] && [[ "$TARGET" != *"/../"* ]] && [ -f "$TARGET" ]; }; then
+    echo "[launcher] path refused or missing: $want"
+    return
+  fi
+  echo "[launcher] opening ($MODE): $TARGET"
+  EXT="${TARGET##*.}"; EXT="${EXT//[^A-Za-z0-9]/}"
+  LINK="/tmp/current-media.${EXT:-bin}"
+  ln -sf "$TARGET" "$LINK"
+  COMMON=(--fullscreen --no-qt-fs-controller --qt-minimal-view --no-qt-system-tray --no-osd
+          --no-video-title-show --mouse-hide-timeout=500 --no-qt-privacy-ask --no-qt-error-dialogs
+          "--rc-host=$RC_ADDR:$RC_PORT")
+  case "$MODE" in
+    dvd)  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
+    # VLC keeps its OpenGL output, although with no GPU it is drawn in software (about 2.4 cores at
+    # 1920x1080, against 0.6 for --vout=xcb_x11): only OpenGL shows the disc's Java menus, which VLC 3's
+    # other outputs fail to blend ("blending BGRA to I420 failed").
+    bluray) bluray_tracks "$TARGET" "$LINK"
+            vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso \
+              "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "bluray://$LINK" & ;;
+    cd)   vlc "${COMMON[@]}" --extraintf=rc --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
+              "--rawaud-fourcc=$FOURCC" "$LINK" & ;;
+    file) vlc "${COMMON[@]}" --extraintf=rc "$LINK" & ;;
+  esac
+  VLC_PID=$!
+  VLC_STARTED=$SECONDS
+}
+
+# VLC only ends by itself when it crashes; the catalog closes a disc by emptying the state file. A crash
+# would leave a black screen until another disc is picked, so the disc is opened again (paused, as always:
+# the viewer presses play), a few times at most. A VLC that ran for a minute resets the count.
+MAX_RESTARTS=3
+RESTARTS=0
+VLC_STARTED=0
+
 while true; do
   WANT=""
   [ -r "$STATE_FILE" ] && { IFS= read -r WANT < "$STATE_FILE" || true; }
@@ -117,50 +169,20 @@ while true; do
   if [ "$WANT" != "$CUR" ]; then
     stop_vlc
     CUR="$WANT"
-
-    if [ -n "$WANT" ]; then
-      # The state line is a plain ISO path (DVD), or "<mode>:<path>" for other media:
-      #   cd-s16l:<bin>  raw audio CD image, little-endian samples (starts paused: the catalog page
-      #                  resumes it once the browser's audio is connected, so no start is lost)
-      #   cd-s16b:<bin>  raw audio CD image, big-endian samples
-      #   file:<path>    an ordinary audio file (CUE sheets that point at WAV/FLAC)
-      #   bluray:<iso>   a Blu-ray image, opened with its menus. Most are Java programs (BD-J), which
-      #                  the image's Java 11 runs (see neko/Dockerfile); the disc's logos and trailers
-      #                  come first, so its menu shows after a minute or more, as on a Blu-ray player
-      MODE="dvd"; TARGET="$WANT"; FOURCC=""
-      case "$WANT" in
-        bluray:*)  MODE="bluray"; TARGET="${WANT#*:}" ;;
-        cd-s16l:*) MODE="cd"; FOURCC="s16l"; TARGET="${WANT#*:}" ;;
-        cd-s16b:*) MODE="cd"; FOURCC="s16b"; TARGET="${WANT#*:}" ;;
-        file:*)    MODE="file"; TARGET="${WANT#*:}" ;;
-      esac
-
-      if [[ "$TARGET" == "$MEDIA_PREFIX"* ]] && [[ "$TARGET" != *"/../"* ]] && [ -f "$TARGET" ]; then
-        echo "[launcher] opening ($MODE): $TARGET"
-        EXT="${TARGET##*.}"; EXT="${EXT//[^A-Za-z0-9]/}"
-        LINK="/tmp/current-media.${EXT:-bin}"
-        ln -sf "$TARGET" "$LINK"
-        COMMON=(--fullscreen --no-qt-fs-controller --qt-minimal-view --no-qt-system-tray --no-osd
-                --no-video-title-show --mouse-hide-timeout=500 --no-qt-privacy-ask --no-qt-error-dialogs
-                "--rc-host=$RC_ADDR:$RC_PORT")
-        case "$MODE" in
-          dvd)  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
-          # VLC keeps its OpenGL output, although with no GPU it is drawn in software (about 2.4 cores at
-          # 1920x1080, against 0.6 for --vout=xcb_x11): only OpenGL shows the disc's Java menus, which VLC 3's
-          # other outputs fail to blend ("blending BGRA to I420 failed").
-          bluray) bluray_tracks "$TARGET" "$LINK"
-                  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso \
-                    "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "bluray://$LINK" & ;;
-          cd)   vlc "${COMMON[@]}" --extraintf=rc --start-paused --demux=rawaud --rawaud-channels=2 --rawaud-samplerate=44100 \
-                    "--rawaud-fourcc=$FOURCC" "$LINK" & ;;
-          file) vlc "${COMMON[@]}" --extraintf=rc "$LINK" & ;;
-        esac
-        VLC_PID=$!
-      else
-        echo "[launcher] path refused or missing: $WANT"
-      fi
+    RESTARTS=0
+    if [ -n "$WANT" ]; then open_media "$WANT"; else echo "[launcher] stopped"; fi
+  elif [ -n "$VLC_PID" ] && ! kill -0 "$VLC_PID" 2>/dev/null; then
+    wait "$VLC_PID" 2>/dev/null
+    CODE=$?
+    VLC_PID=""
+    [ $((SECONDS - VLC_STARTED)) -ge 60 ] && RESTARTS=0
+    if [ "$RESTARTS" -lt "$MAX_RESTARTS" ]; then
+      RESTARTS=$((RESTARTS + 1))
+      echo "[launcher] VLC ended by itself (exit $CODE); opening the disc again ($RESTARTS/$MAX_RESTARTS)"
+      sleep 1
+      open_media "$CUR"
     else
-      echo "[launcher] stopped"
+      echo "[launcher] VLC ended by itself (exit $CODE) $MAX_RESTARTS times; waiting for another disc"
     fi
   fi
 
