@@ -26,6 +26,7 @@ type Config struct {
 	StreamResolution, BlurayResolution string // the screen for discs, and for Blu-ray ("" keeps one size)
 	DVDMenuLanguage                    string // the player's DVD menu language (DVD_MENU_LANGUAGE), to read the same menus
 	CORSOrigins                        []string
+	APIKey                             string // lets other apps (the TV apps) call the API from any origin
 	TMDBKey, TMDBLanguage              string
 	TMDBAPI, TMDBImg                   string
 	MBURL, CAAURL, MBContact           string
@@ -92,6 +93,7 @@ func Load() (Config, error) {
 			c.CORSOrigins = append(c.CORSOrigins, o)
 		}
 	}
+	c.APIKey = compat.Strip(env("API_KEY", ""))
 	c.TMDBKey = compat.Strip(env("TMDB_API_KEY", ""))
 	c.TMDBLanguage = env("TMDB_LANGUAGE", "en-US")
 	c.TMDBAPI = strings.TrimRight(env("TMDB_API_URL", "https://api.themoviedb.org/3"), "/")

@@ -7,9 +7,24 @@ can do the same. Everything below is relative to `http://<server>:8080`.
 **There is no login.** Anyone who can reach the port can play, stop and edit. Keep it on a trusted network
 (or behind a VPN such as Tailscale).
 
-Calling the API from another origin (for example an app that runs on a TV) needs CORS, which is **off by
-default**. Set `CORS_ORIGIN` in `.env` to a comma-separated list of origins, or `*`. A packaged app that runs
-from a `file://` URL sends the origin `null`. Only paths under `/api/` get the CORS headers.
+## Who may call the API
+
+Browsers name the page behind a request in its `Origin` header, and the API uses it so that another website,
+opened on the same network, cannot use it. A request under `/api/` is accepted when:
+
+- it has **no `Origin`**: a native app or a script (`curl`), or a same-origin `GET`;
+- its `Origin` is **this server**, as the browser reached it (`Host`, or `X-Forwarded-Host` behind a reverse proxy);
+- its `Origin` is **listed** by name in `CORS_ORIGIN` (comma-separated), e.g. `https://remote.example`;
+- it carries **`API_KEY`**, in the `X-StreamISO-Key` header, or as `?key=` for `navigator.sendBeacon`, which
+  cannot set headers. This is the way for apps that run from a `file://` URL (the TV apps), which send the
+  origin `null`. Any website can send `null` too, from a sandboxed frame, so the origin alone proves nothing.
+
+Anything else gets `403` with `{"error": ...}`. With `API_KEY` set, every origin gets the CORS headers, so an app
+can read that error ("Missing or wrong API key"); without it, only listed origins do.
+
+Before `API_KEY` existed, the TV apps needed `CORS_ORIGIN=null`. That still works while `API_KEY` is empty, but it
+lets any website in, and the catalog logs a warning. `<img>` and `<video>` send no `Origin`, so covers and the
+plain video load from anywhere.
 
 ## The playback flow
 
