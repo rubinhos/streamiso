@@ -15,11 +15,9 @@ import (
 // header. A request to /api/ is let through when:
 //   - it has no Origin: not a browser page (the Android app's own calls, curl), or a same-origin GET;
 //   - its Origin is this server, as the browser reached it (the catalog's own pages);
-//   - its Origin is listed by name in CORS_ORIGIN;
 //   - it carries API_KEY, in the X-StreamISO-Key header or the "key" query parameter (for sendBeacon, which
-//     cannot set headers). This is how the TV apps call it: they run from file:// and send the origin "null",
-//     which any website can send too, from a sandboxed frame;
-//   - API_KEY is not set and CORS_ORIGIN lists "null" or "*", as before API_KEY existed (main warns).
+//     cannot set headers). This is how the TV apps call it: they run from a packaged page and send the origin
+//     "null", which any website can send too, from a sandboxed frame, so the origin alone proves nothing.
 //
 // Images (<img>) and the plain video (<video>) are fetched without an Origin, so they keep working anywhere.
 
@@ -52,27 +50,8 @@ func (s *Server) keyOK(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(key), []byte(s.cfg.APIKey)) == 1
 }
 
-// listed: CORS_ORIGIN names this origin. "null" and "*" only count while there is no API_KEY.
-func (s *Server) listed(origin string) bool {
-	for _, o := range s.cfg.CORSOrigins {
-		if o == origin && o != "null" {
-			return true
-		}
-		if (o == "*" || o == "null" && origin == "null") && s.cfg.APIKey == "" {
-			return true
-		}
-	}
-	return false
-}
-
-// LegacyOpenCORS: CORS_ORIGIN lets any website call the API, because it lists "null" or "*" and there is no
-// API_KEY.
-func (s *Server) LegacyOpenCORS() bool {
-	return s.cfg.APIKey == "" && (s.listed("null") || s.listed("*"))
-}
-
-// guard checks a request to /api/ (see above) and sets the CORS headers. false means it was answered already:
-// a preflight, or a refusal (403).
+// guard checks a request to /api/ (see above) and sets the CORS headers. false means it was answered already
+// (403).
 func (s *Server) guard(w http.ResponseWriter, r *http.Request) bool {
 	if !strings.HasPrefix(r.URL.Path, "/api/") {
 		return true
@@ -81,10 +60,9 @@ func (s *Server) guard(w http.ResponseWriter, r *http.Request) bool {
 	if origin == "" || sameOrigin(origin, r) {
 		return true
 	}
-	listed := s.listed(origin)
 	// With an API key, every origin gets the CORS headers, so an app can read why it was refused; only the key
 	// lets it do anything. A preflight carries no key (only the name of its header), so it is always answered.
-	if listed || s.cfg.APIKey != "" {
+	if s.cfg.APIKey != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Add("Vary", "Origin")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -94,10 +72,10 @@ func (s *Server) guard(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method == http.MethodOptions {
 		return true // answered by the router, with the CORS headers or without them
 	}
-	if listed || s.keyOK(r) {
+	if s.keyOK(r) {
 		return true
 	}
-	msg := "This address does not accept calls from other websites"
+	msg := "This server does not accept calls from other websites or apps (set API_KEY in its .env for the TV apps)"
 	if s.cfg.APIKey != "" {
 		msg = "Missing or wrong API key (API_KEY in the server's .env)"
 	}
