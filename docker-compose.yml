@@ -36,6 +36,8 @@ services:
       NEKO_WEBRTC_EPR: "52000-52100"
       # whoever clicks or types on the video gets control automatically
       NEKO_SESSION_IMPLICIT_HOSTING: "true"
+      # The address(es) the video is offered on. Several are separated by spaces (e.g. the LAN IP and the
+      # Tailscale IP); each viewer uses the one it can reach.
       NEKO_WEBRTC_NAT1TO1: "${SERVER_IP:?set SERVER_IP in the .env file (the server's IP on your network)}"
       STATE_FILE: "/state/current"
       MEDIA_PREFIX: "/media/"
