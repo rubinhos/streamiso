@@ -265,7 +265,7 @@ Test in a desktop browser first, then on the TV.
 | `CD_DIR` | `MEDIA_DIR` | Folder with your audio CD images (`.cue` + `.bin`), mounted read-only |
 | `BLURAY_DIR` | empty | Folder with your Blu-ray ISO images (unprotected), mounted read-only. Optional: Blu-ray images among the DVDs are recognized anyway. See [Blu-ray](#blu-ray) |
 | `MEDIA_DIR` | empty | One folder for both, used when `DVD_DIR` / `CD_DIR` are not set |
-| `SERVER_IP` | (required) | Server IP on your network; used for WebRTC |
+| `SERVER_IP` | (required) | Server IP on your network; used for WebRTC. Several IPs are separated by spaces, e.g. the LAN IP and the [Tailscale](#watching-from-another-network-tailscale) IP |
 | `NEKO_PASSWORD` | `neko` | Password the catalog uses to log into the player |
 | `NEKO_ADMIN_PASSWORD` | `change-this-password` | Neko admin password |
 | `CATALOG_PORT` | `8080` | Catalog web UI port |
@@ -503,10 +503,42 @@ Give the PC a fixed IP in your router, otherwise `SERVER_IP` goes stale when the
 **Docker inside WSL (without Docker Desktop)**: the same mirrored-networking steps apply; media folders then live under
 `/mnt/d/...`. In the default NAT mode this setup only works from the same PC, using the WSL IP (`hostname -I`) as `SERVER_IP`.
 
+## Watching from another network (Tailscale)
+
+StreamISO has no login of its own, so to watch away from home put it behind [Tailscale](https://tailscale.com) (a
+private VPN between your own devices) instead of opening ports on the router.
+
+1. Install Tailscale on the server and on the device you will watch on, and sign both into the same account. On a
+   Windows server use the Tailscale app for Windows: with the [mirrored networking](#running-on-windows) set up above,
+   the ports Docker publishes are reachable on the Tailscale address too.
+2. Find the server's Tailscale IP: `tailscale ip -4` (it starts with `100.` and does not change).
+3. In `.env`, add it to `SERVER_IP` after the LAN IP, separated by a **space**, so devices at home keep working:
+
+   ```ini
+   SERVER_IP=192.168.1.4 100.101.102.103
+   ```
+
+   Neko offers the video on every address listed and each viewer uses the one it can reach. Then
+   `docker compose up -d --force-recreate`.
+4. On Windows, allow the StreamISO ports on the Tailscale adapter too (PowerShell as administrator), since the rules
+   above only cover the **Private** profile:
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "StreamISO TCP (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 8080,8081 -InterfaceAlias Tailscale -Action Allow
+   New-NetFirewallRule -DisplayName "StreamISO UDP (Tailscale)" -Direction Inbound -Protocol UDP -LocalPort 52000-52100 -InterfaceAlias Tailscale -Action Allow
+   ```
+
+5. On the remote device, open `http://<tailscale-ip>:8080`. The player link follows the address you opened.
+
+Away from home, the server's upload speed is the limit: a Blu-ray uses `BLURAY_BITRATE` (8000 kbit/s by default) and a
+DVD `STREAM_BITRATE`. Lower them in `.env` if the picture stalls. `tailscale status` shows whether the connection is
+`direct` or goes through a relay, which is slower.
+
 ## Troubleshooting
 
 **The player page opens but there is no video ("video connection failed").** WebRTC UDP is not getting through.
 Check `SERVER_IP` (it must be the address you use in the browser) and that UDP 52000-52100 is reachable. See the WSL2 notes above.
+From another network, the server's Tailscale IP must be in `SERVER_IP` (see [Tailscale](#watching-from-another-network-tailscale)).
 
 **A CD does not appear in the library.** The cue sheet was skipped: `docker logs streamiso-catalog` says why (missing image file, data tracks, one file per track).
 
