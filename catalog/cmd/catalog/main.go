@@ -62,6 +62,7 @@ func main() {
 	} else if cfg.BlurayResolution != "" {
 		log.Printf("WARNING: BLURAY_RESOLUTION %q is not WIDTHxHEIGHT: the screen keeps one size", cfg.BlurayResolution)
 	}
+	playback.UseDVDMenus(&media.DVDReader{MenuLanguage: cfg.DVDMenuLanguage})
 
 	api := httpapi.New(cfg, catalog, library, metadata, playback)
 	addr := "0.0.0.0:" + cfg.Port

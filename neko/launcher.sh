@@ -43,11 +43,11 @@ add_lang DVD_MENU_LANGUAGE menu-language
 add_lang DVD_AUDIO_LANGUAGE audio-language
 add_lang DVD_SUBTITLE_LANGUAGE sub-language
 
-# streamiso.lua: a VLC interface for what the rc port cannot do (a Blu-ray's pop-up menu). VLC finds Lua
-# interfaces in the user's data folder.
+# streamiso.lua: a VLC interface for what the rc port cannot do (a DVD's menus, a Blu-ray's pop-up menu).
+# VLC finds Lua interfaces in the user's data folder.
 LUA_INTF_DIR="${HOME:-/home/neko}/.local/share/vlc/lua/intf"
 mkdir -p "$LUA_INTF_DIR" && cp "$(dirname "$0")/streamiso.lua" "$LUA_INTF_DIR/" \
-  || echo "[launcher] could not install streamiso.lua: no Blu-ray pop-up menu"
+  || echo "[launcher] could not install streamiso.lua: no DVD menus or Blu-ray pop-up menu"
 
 # The audio and subtitle languages of a Blu-ray's main title, for the catalog's track lists. With menus, VLC
 # names every track after the disc's first clip (often a studio logo in English only) and keeps those names
@@ -144,7 +144,7 @@ while true; do
                 --no-video-title-show --mouse-hide-timeout=500 --no-qt-privacy-ask --no-qt-error-dialogs
                 "--rc-host=$RC_ADDR:$RC_PORT")
         case "$MODE" in
-          dvd)  vlc "${COMMON[@]}" --extraintf=rc "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
+          dvd)  vlc "${COMMON[@]}" --extraintf=rc:luaintf --lua-intf=streamiso "${DEINTERLACE[@]}" "${LANG_ARGS[@]}" --start-paused "dvdnav://$LINK" & ;;
           # VLC keeps its OpenGL output, although with no GPU it is drawn in software (about 2.4 cores at
           # 1920x1080, against 0.6 for --vout=xcb_x11): only OpenGL shows the disc's Java menus, which VLC 3's
           # other outputs fail to blend ("blending BGRA to I420 failed").

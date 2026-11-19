@@ -24,6 +24,7 @@ type Config struct {
 	HLSDir                             string
 	PlayerInfoDir                      string // what the player writes for the catalog (the player-info volume)
 	StreamResolution, BlurayResolution string // the screen for discs, and for Blu-ray ("" keeps one size)
+	DVDMenuLanguage                    string // the player's DVD menu language (DVD_MENU_LANGUAGE), to read the same menus
 	CORSOrigins                        []string
 	TMDBKey, TMDBLanguage              string
 	TMDBAPI, TMDBImg                   string
@@ -85,6 +86,7 @@ func Load() (Config, error) {
 	c.PlayerInfoDir = env("PLAYER_INFO_DIR", "/info")
 	c.StreamResolution = env("STREAM_RESOLUTION", "")
 	c.BlurayResolution = env("BLURAY_RESOLUTION", "")
+	c.DVDMenuLanguage = strings.ToLower(env("DVD_MENU_LANGUAGE", ""))
 	for _, o := range strings.Split(env("CORS_ORIGIN", ""), ",") {
 		if o = compat.Strip(o); o != "" {
 			c.CORSOrigins = append(c.CORSOrigins, o)

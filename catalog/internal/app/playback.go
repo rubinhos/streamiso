@@ -31,6 +31,15 @@ type Playback struct {
 	screen           ports.Screen
 	discSize, bdSize [2]int
 
+	// A DVD's menus (from its IFO files), and the title set of the last title played on the open disc: VLC
+	// reports title 0 in every menu, and the menus of a title set are the ones of the last set played.
+	dvd     ports.DVDMenus
+	setMu   sync.Mutex
+	lastSet struct {
+		state string
+		set   int
+	}
+
 	// pending is what the player still has to do for the disc that was just opened. VLC opens
 	// paused, so the first seconds are not lost before the viewer's audio and video connect.
 	pendMu  sync.Mutex
@@ -51,6 +60,53 @@ func NewPlayback(player ports.Player, state ports.PlayerState, resume ports.Resu
 // one (disc). With no bluray size, the screen is never changed.
 func (p *Playback) UseScreen(screen ports.Screen, disc, bluray [2]int) {
 	p.screen, p.discSize, p.bdSize = screen, disc, bluray
+}
+
+// UseDVDMenus lets the player offer each menu a DVD has (see DVDMenus).
+func (p *Playback) UseDVDMenus(dvd ports.DVDMenus) { p.dvd = dvd }
+
+// dvdMenus are the menus of the DVD d that can be opened now, title being the title playing (0 in a menu).
+// It also keeps the title set of the title playing. Nil when they cannot be read.
+func (p *Playback) dvdMenus(d *domain.Disc, title any) []string {
+	if p.dvd == nil || d == nil || d.Kind != "dvd" || d.Format == "bluray" {
+		return nil
+	}
+	layout, err := p.dvd.Layout(d.Path)
+	if err != nil {
+		return nil
+	}
+	t, _ := title.(int64)
+	p.setMu.Lock()
+	defer p.setMu.Unlock()
+	if p.lastSet.state != d.State {
+		p.lastSet.state, p.lastSet.set = d.State, 0
+	}
+	if s := layout.SetOf(t); s > 0 {
+		p.lastSet.set = s
+	}
+	return layout.Menus(t, p.lastSet.set)
+}
+
+// openMenu opens a DVD's menu by its id (see domain.MenuSeekpoint), or its main menu for "". The main menu is
+// the Title menu, else the Root menu of the part playing (the player's "menu-title", as the Menu button of
+// VLC's own window). VLC's menu key would call the Root menu first and, on a disc whose film has none, take the
+// Title menu's number as a chapter and jump inside the film.
+func (p *Playback) openMenu(d *domain.Disc, id string) error {
+	if id == "" || id == domain.MenuTitle {
+		return p.state.Signal("menu-title")
+	}
+	n, known := domain.MenuSeekpoint[id]
+	if !known {
+		return &domain.ValueError{Msg: "Unknown menu"}
+	}
+	t, err := p.player.Status()
+	if err != nil {
+		return err
+	}
+	if menus := p.dvdMenus(d, t["title"]); !domain.HasMenu(menus, id) {
+		return &domain.ValueError{Msg: "This part of the disc has no such menu"}
+	}
+	return p.state.Signal(fmt.Sprintf("menu-%d", n))
 }
 
 // fitScreen sets the screen size for the disc about to open. A Blu-ray is 1920x1080, so a bigger screen adds
@@ -413,6 +469,12 @@ func (p *Playback) Status() (map[string]any, error) {
 		}
 		if err == nil && d != nil && d.Format == "bluray" {
 			p.nameBlurayTracks(d, st)
+			st["menus"] = domain.BlurayMenus
+		}
+		if err == nil {
+			if menus := p.dvdMenus(d, st["title"]); menus != nil {
+				st["menus"] = menus
+			}
 		}
 	}
 	if err != nil {
@@ -476,16 +538,23 @@ func (p *Playback) Command(payload map[string]any) error {
 			return number(-1, 1000000, p.player.SetSubtitle)
 		case "menu", "return":
 			if d != nil && d.Format == "bluray" {
-				// Discs refuse the top menu during the film (VLC then jumps elsewhere in it), but most open
-				// their pop-up menu, the remote's Pop-up key, which usually leads back to the main menu too.
-				// VLC's remote-control port has no command for it, so it goes through the state folder.
+				// The disc's own program draws every menu but two: the pop-up menu (the remote's Pop-up key,
+				// the default) and the main menu (Top menu), which the player calls as for a DVD (openMenu).
+				// VLC's remote-control port has neither, so they go through the state folder.
 				if action == "return" {
 					return &domain.ValueError{Msg: "Use the menu button: on a Blu-ray it opens the disc's pop-up menu"}
 				}
-				return p.state.Signal("popup")
+				switch id, _ := payload["value"].(string); id {
+				case "", domain.MenuPopup:
+					return p.state.Signal("popup")
+				case domain.MenuTitle:
+					return p.state.Signal("menu-title")
+				}
+				return &domain.ValueError{Msg: "Unknown menu"}
 			}
 			if action == "menu" {
-				return p.player.DiscMenu()
+				id, _ := payload["value"].(string)
+				return p.openMenu(d, id)
 			}
 			return p.player.PartMenu()
 		}

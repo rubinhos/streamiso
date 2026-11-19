@@ -141,12 +141,19 @@ DVD:
   "volume": 80,
   "chapter": 4, "title": 1,
   "audio": [ { "id": 1, "name": "English" } ],
-  "subtitles": [ { "id": -1, "name": "Disable" }, { "id": 2, "name": "English" } ]
+  "subtitles": [ { "id": -1, "name": "Disable" }, { "id": 2, "name": "English" } ],
+  "menus": [ "title", "root", "chapters", "audio" ]
 }
 ```
 
 `state` is VLC's own: `playing`, `paused`, `stopped`, `idle`, and so on. The subtitle entry with id `-1` means
 "off".
+
+`menus` (left out for a DVD whose image cannot be read) are the disc's menus that can be opened now, read from
+its IFO files, for the `menu` command: `title` (the disc's main menu), and the menus of the part playing: `root`,
+`chapters`, `audio`, `subtitles`, `angle`. During a film only that title set's menus are listed, and only when it
+has a Root menu: VLC calls that one first, and without it would jump inside the film instead. A Blu-ray always lists
+`title` (its Top menu) and `popup` (its pop-up menu): its program draws every other menu itself.
 
 Audio CD (one continuous stream split into tracks):
 
@@ -178,7 +185,7 @@ Body: `{"action": "...", "value": ...}`. Returns `{"ok": true}`, or `{"error": "
 | `volume` | 0-100 | Volume |
 | `audio` | id from `status.audio` | DVD audio track |
 | `subtitle` | id from `status.subtitles`, `-1` to hide | DVD subtitles |
-| `menu` | none | DVD main menu. Blu-ray: the disc's pop-up menu (discs refuse the main menu during the film; the pop-up menu usually leads back to it) |
+| `menu` | none, or an id from `status.menus` | That menu. None is a DVD's main menu (the Title menu, else the Root menu of the part playing), and a Blu-ray's pop-up menu |
 | `return` | none | DVD: the menu of what is playing (the Root menu of its title set), as the Menu key of a DVD remote. The disc decides which menu: often the one the film or extra was started from |
 | `nav` | `up`, `down`, `left`, `right`, `activate` | Move in a DVD menu (VLC remote interface). Useful when the video has no keyboard focus |
 

@@ -222,9 +222,6 @@ func (v *Client) SetAudio(id int64) error { return v.do(fmt.Sprintf("atrack %d",
 
 func (v *Client) SetSubtitle(id int64) error { return v.do(fmt.Sprintf("strack %d", id)) }
 
-// DiscMenu opens the disc's main menu (VLC's menu key calls the Title menu, else the Root menu).
-func (v *Client) DiscMenu() error { return v.do("key key-disc-menu") }
-
 // PartMenu opens the Root menu of the part of the disc that is playing, as the Menu key of a DVD
 // remote. Title 0 is how VLC's DVD module calls it.
 func (v *Client) PartMenu() error { return v.do("title 0") }
