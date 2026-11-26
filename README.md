@@ -383,7 +383,10 @@ Your edits override TMDB; an empty field falls back to the automatic value. **Cl
 `Turma da Mônica 03` sorts by that, while the card still shows its title. Left empty, the disc sorts by its title.
 
 For a TV series spread over several discs, give each disc the series name as its **Title** and fill in **Season** and
-**Disc** (or name the files `Show S02 D1.iso`, which needs no editing), then sort by "Series & season". Discs matched to
+**Disc** (or name the files `Show S02 D1.iso`, which needs no editing), then sort by "Series & season". A season or disc
+written in the title, the file name or the volume label (`S02 D1`, `Season 2 Disc 3`, `T1 Disco 4`, `Disc 2`) fills in
+**Season** and **Disc** by itself, and the title shows the name alone (`Show`); the player shows `Show – Season 2, Disc 1`.
+What you type in the editor still wins. Discs matched to
 the same TV series on TMDB form one season even if their titles differ, and a revival with the same name as the
 original (`Will & Grace`, 2017: set **Year** 2017) stays apart from it.
 

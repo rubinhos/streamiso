@@ -4,9 +4,11 @@ package app
 // makes: edits, watched, covers, forgetting where a disc was left.
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 
 	"streamiso/internal/compat"
 	"streamiso/internal/domain"
@@ -81,10 +83,31 @@ func (l *Library) resumeView(d *domain.Disc) any {
 // ShownTitle is the title the user sees: their own, or the one found.
 func (l *Library) ShownTitle(d *domain.Disc) any {
 	rec := libRec(l.lib.Load(), d.FP)
+	// The name, then the season and disc spelled out: "Friends – Season 1, Disc 2"
+	name, season, disc := domain.AutoParts(d, domain.LocalizedTitle(d, l.meta.Read(d.ID)))
 	if compat.Truthy(rec["title"]) {
-		return rec["title"]
+		name = compat.Str(rec["title"])
+		if domain.SplitTitle(name).Named {
+			return name // the user's title names them already
+		}
 	}
-	return domain.LocalizedTitle(d, l.meta.Read(d.ID))
+	if v, ok := rec["season"]; ok && v != nil {
+		season = v
+	}
+	if v, ok := rec["disc"]; ok && v != nil {
+		disc = v
+	}
+	var parts []string
+	if season != nil {
+		parts = append(parts, fmt.Sprintf("Season %v", season))
+	}
+	if disc != nil {
+		parts = append(parts, fmt.Sprintf("Disc %v", disc))
+	}
+	if len(parts) == 0 {
+		return name
+	}
+	return name + " – " + strings.Join(parts, ", ")
 }
 
 // DiscView is a disc as the UI sees it: the user's edits layered over the automatic values.
@@ -96,11 +119,22 @@ func (l *Library) DiscView(d *domain.Disc, lib map[string]any) map[string]any {
 		genres = d.GenresAuto
 	}
 	aliases := l.metadata.GenreAliases()
+	// "Friends S01 D2" shows as Friends, with season 1 and disc 2 filled in (the user's edits still win)
+	name, autoSeason, autoDisc := domain.AutoParts(d, domain.LocalizedTitle(d, meta))
 	auto := map[string]any{
-		"title":    domain.LocalizedTitle(d, meta),
+		"title":    name,
 		"year":     yearAuto(d, meta),
 		"genres":   domain.GenreTags(genres, aliases),
 		"synopsis": compat.GetOr(meta, "overview", ""),
+		"season":   autoSeason,
+		"disc":     autoDisc,
+	}
+	season, disc := autoSeason, autoDisc
+	if v, ok := ov["season"]; ok && v != nil {
+		season = v
+	}
+	if v, ok := ov["disc"]; ok && v != nil {
+		disc = v
 	}
 	year := auto["year"]
 	if v, ok := ov["year"]; ok && v != nil {
@@ -135,8 +169,8 @@ func (l *Library) DiscView(d *domain.Disc, lib map[string]any) map[string]any {
 		"resume":      l.resumeView(d),
 		// the TV series found on TMDB: groups the discs of a season apart from a same-named series
 		"tmdb_series":  series,
-		"season":       ov["season"],
-		"disc":         ov["disc"],
+		"season":       season,
+		"disc":         disc,
 		"rating":       meta["rating"],
 		"label":        d.Label,
 		"size":         d.Size,

@@ -71,7 +71,7 @@ A disc:
 | `artist`, `track_count`, `duration` | Audio CDs only (`duration` in seconds) |
 | `watched` | Watched (DVD) or listened (CD) flag |
 | `resume` | `null`, or where it was left: `{ "time": seconds, "pct": 0-100 or null }`. For CDs it also has `track` (1-based) and `track_time` (seconds into that track) |
-| `season`, `disc` | Grouping fields: discs with the same series name (the title, minus any `S02 D1`) and season form one season |
+| `season`, `disc` | Grouping fields: discs with the same series name and season form one season. The user's edits, else what the title, file name or volume label says (`S02 D1`, `Disc 2`), also in `auto.season` / `auto.disc`. `title` then holds the name alone: "Friends S02 D1" comes as "Friends", season 2, disc 1 |
 | `tmdb_series` | TMDB id of the TV series the disc was matched to, or `null`. Discs of a season are grouped by it when set, so same-named series (a revival) stay apart |
 | `rating` | TMDB rating when known |
 | `label`, `size`, `rel`, `added` | Volume label, bytes, path relative to the media folder, mtime |
