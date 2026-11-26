@@ -231,6 +231,73 @@ func ParseFilmDisc(title string) (string, int, bool) {
 	return name, n, name != ""
 }
 
+// TitleParts is a title split into the name of the film or series and the season and disc written in it.
+// Season and Disc are 0 when the title does not say.
+type TitleParts struct {
+	Name             string
+	Season, Disc     int
+	Named            bool // the title held a season or a disc
+	SeasonIn, DiscIn bool
+}
+
+var (
+	// what follows a series name: the season itself ("S02", " - Season 2", "T1")
+	seasonTokenRE = regexp.MustCompile(`(?i)^[\s\-–:,(]*(?:season|temporada|saison|staffel|s|t)\s*\d{1,3}`)
+	// a disc right after the season: "D1", " Disc 3", " - Disco 4" ("S01D02" too)
+	discTokenRE = regexp.MustCompile(`(?i)^[\s\-–:,(]*(?:dis[ck]o?|dvd|d)\s*0*(\d{1,3})(?:$|\D)`)
+)
+
+// SplitTitle splits "Friends S01 D2" into Friends, season 1, disc 2, "Lost - Season 2 Disc 3" into Lost, 2, 3,
+// and "Titanic Disc 2" into Titanic, disc 2 (no season). The same rules as the catalog page's seasonOf().
+func SplitTitle(title string) TitleParts {
+	if name, season, ok := ParseSeason(title); ok {
+		p := TitleParts{Name: name, Season: season, SeasonIn: true, Named: true}
+		if i := strings.Index(title, name); i >= 0 {
+			rest := title[i+len(name):]
+			if m := seasonTokenRE.FindStringIndex(rest); m != nil {
+				if d := discTokenRE.FindStringSubmatch(rest[m[1]:]); d != nil {
+					p.Disc, _ = strconv.Atoi(d[1])
+					p.DiscIn = true
+				}
+			}
+		}
+		return p
+	}
+	if name, disc, ok := ParseFilmDisc(title); ok {
+		return TitleParts{Name: name, Disc: disc, DiscIn: true, Named: true}
+	}
+	return TitleParts{Name: title}
+}
+
+// AutoParts is what the catalog shows for a DVD or Blu-ray the user has not edited: its title (title, as
+// found) without the season and disc written in it, and those numbers (nil when unknown). When the title does
+// not say, the numbers come from the file name, then the volume label ("SCOOBYDOO_S1_D1.iso" under a title
+// found online). A CD is left as it is.
+func AutoParts(d *Disc, title string) (name string, season, disc any) {
+	if d.Kind == "cd" {
+		return title, nil, nil
+	}
+	p := SplitTitle(title)
+	name = title
+	if p.Named && p.Name != "" {
+		name = p.Name
+	} else {
+		for _, other := range []string{compat.Stem(d.Rel), d.Label} {
+			if q := SplitTitle(UnderDotRE.ReplaceAllString(other, " ")); q.Named {
+				p = q
+				break
+			}
+		}
+	}
+	if p.SeasonIn {
+		season = int64(p.Season)
+	}
+	if p.DiscIn {
+		disc = int64(p.Disc)
+	}
+	return name, season, disc
+}
+
 // FilmName is the title without a "Disc 2" in it: what to search for online.
 func FilmName(title string) string {
 	if name, _, ok := ParseFilmDisc(title); ok {

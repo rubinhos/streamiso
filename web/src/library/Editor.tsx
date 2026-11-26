@@ -217,10 +217,10 @@ export function Editor({ disc: d, all, knownGenres, aliases, tmdbOn, reload, onC
                   <input id="ed-year" type="number" min="1888" max="2100" value={year} placeholder={valueOf(a.year)} onInput={(e) => setYear((e.target as HTMLInputElement).value)} />
                 </label>
                 <label>Season
-                  <input id="ed-season" type="number" min="0" max="999" value={season} onInput={(e) => setSeason((e.target as HTMLInputElement).value)} />
+                  <input id="ed-season" type="number" min="0" max="999" value={season} placeholder={valueOf(a.season)} onInput={(e) => setSeason((e.target as HTMLInputElement).value)} />
                 </label>
                 <label>Disc
-                  <input id="ed-disc" type="number" min="1" max="999" value={discNo} onInput={(e) => setDiscNo((e.target as HTMLInputElement).value)} />
+                  <input id="ed-disc" type="number" min="1" max="999" value={discNo} placeholder={valueOf(a.disc)} onInput={(e) => setDiscNo((e.target as HTMLInputElement).value)} />
                 </label>
               </div>
               <label>Genres <span class="muted small">(comma-separated, or click below)</span>

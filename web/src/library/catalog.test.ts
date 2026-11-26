@@ -29,6 +29,11 @@ describe("titles", () => {
     expect(parseFilmDisc("Ben-Hur D2")).toEqual({ name: "Ben-Hur", disc: 2 });
     expect(parseFilmDisc("Apollo 13")).toBeNull();
   });
+  it("groups the discs the server sends already split: the name alone, with season and disc filled in", () => {
+    expect(seasonOf(disc({ title: "Friends", season: 1, disc: 2 }))).toMatchObject({ key: "friends|1", name: "Friends", season: 1, disc: 2 });
+    expect(seasonOf(disc({ title: "Titanic", disc: 2 }))).toMatchObject({ key: "film:titanic", name: "Titanic", season: null, disc: 2 });
+    expect(seasonOf(disc({ title: "Titanic" }))).toBeNull();
+  });
   it("takes the season from the file name when the title has none", () => {
     const s = seasonOf(disc({ title: "Friends", rel: "tv/Friends_S02_D1.iso" }));
     expect(s).toMatchObject({ key: "friends|2", name: "Friends", season: 2, disc: 1 });

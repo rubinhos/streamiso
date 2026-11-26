@@ -29,10 +29,14 @@ export interface Edits {
 
 /** What was found for a disc, before the user's edits. */
 export interface AutoInfo {
+  /** Without the season and disc written in the name ("Friends S01 D2" → "Friends"). */
   title: string;
   year: number | null;
   genres: string[];
   synopsis: string;
+  /** Read from the name, the file name or the volume label; null when none says. */
+  season?: number | null;
+  disc?: number | null;
 }
 
 export interface Disc {
